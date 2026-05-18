@@ -43,13 +43,14 @@ jobs:
 
           MILESTONE=$(gh api repos/${{ github.repository }}/milestones \
             --method POST \
-            --field title="benchmark: $SHA" \
+            --field title="benchmark: $SHA (run $RUN_ID)" \
             --field description="$(jq -n \
                 --arg sha    "$SHA" \
                 --arg run_id "$RUN_ID" \
+                --arg run_url "https://github.com/${{ github.repository }}/actions/runs/$RUN_ID" \
                 --arg p1     "$PARAM1" \
                 --arg p2     "$PARAM2" \
-                '{commit:$sha, run_id:$run_id, param1:$p1, param2:$p2}')" \
+                '{commit:$sha, run_id:$run_id, run_url:$run_url,param1:$p1, param2:$p2}')" \
             --jq '.number')
 
           echo "Created milestone #$MILESTONE"
