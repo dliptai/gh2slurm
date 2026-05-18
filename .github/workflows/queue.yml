@@ -48,25 +48,26 @@ jobs:
     steps:
       - name: Create issue for ${{ matrix.cluster }}
         env:
-          RUN_URL: ${{ env.RUN_URL }}
-          CLUSTER: ${{ matrix.cluster }}
+          issue_body: |
+            {
+              "commit": "${{ github.sha }}",
+              "cluster": "${{ matrix.cluster }}",
+              "run_id": "${{ github.run_id }}",
+              "run_url": "${RUN_URL}",
+              "param1": "${{ github.event.inputs.param1 }}"
+            }
+
         run: |
           # Create issue
 
-          # Use JSON for issue body, so they can be parsed easily later
-          ISSUE_BODY=$(jq -n \
-            --arg sha     "${{ github.sha }}" \
-            --arg cluster "$CLUSTER" \
-            --arg run_id  "${{ github.run_id }}" \
-            --arg run_url "$RUN_URL" \
-            --arg p1      "$PARAM1" \
-            '{commit:$sha, cluster:$cluster, run_id:$run_id, run_url:$run_url, param1:$p1}')
+          # Convert issue_body to JSON string for gh CLI
+          BODY="${{ toJson(env.issue_body) }}"
 
           echo "Creating issue for $CLUSTER"
 
           gh issue create \
             --title     "$TITLE" \
-            --body      "$ISSUE_BODY" \
+            --body      "$BODY" \
             --label     pending \
-            --label     "$CLUSTER" \
+            --label     "${{ matrix.cluster }}" \
             --milestone "$TITLE"
