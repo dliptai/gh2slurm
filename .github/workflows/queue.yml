@@ -26,15 +26,15 @@ jobs:
     steps:
       - name: Create milestone
         env:
-          DESCRIPTION: |
-            **Trigger:** [${{ github.run_id }}](${RUN_URL})
+          description: |
+            **Trigger:** [${{ github.run_id }}](${{ env.RUN_URL }})
             **Commit:** [${{ github.sha }}](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
             **Params:** \`${{ github.event.inputs.param1 }}\`
         run: |
           gh api repos/${{ github.repository }}/milestones \
             --method POST \
-            --field title="$TITLE" \
-            --field description="$DESCRIPTION" \
+            --field title="${{ env.TITLE }}" \
+            --field description="${{ env.description }}" \
             --jq '.html_url'
 
   create-issues:
@@ -53,21 +53,14 @@ jobs:
               "commit": "${{ github.sha }}",
               "cluster": "${{ matrix.cluster }}",
               "run_id": "${{ github.run_id }}",
-              "run_url": "${RUN_URL}",
+              "run_url": "${{ env.RUN_URL }}",
               "param1": "${{ github.event.inputs.param1 }}"
             }
 
         run: |
-          # Create issue
-
-          # Convert issue_body to JSON string for gh CLI
-          BODY='${{ toJson(env.issue_body) }}'
-
-          echo "Creating issue for $CLUSTER"
-
           gh issue create \
-            --title     "$TITLE" \
-            --body      "$BODY" \
+            --title     "${{ env.TITLE }}" \
+            --body      '${{ toJson(env.issue_body) }}' \
             --label     pending \
             --label     "${{ matrix.cluster }}" \
-            --milestone "$TITLE"
+            --milestone "${{ env.TITLE }}"
