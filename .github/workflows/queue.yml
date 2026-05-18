@@ -1,0 +1,70 @@
+# .github/workflows/queue-enqueue.yml
+name: Enqueue benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      clusters:
+        description: "Comma-separated cluster names (e.g. ozstar-nt,ozstar)"
+        required: true
+        default: "ozstar-nt,ozstar"
+      param1:
+        description: "First parameter"
+        required: true
+      param2:
+        description: "Second parameter"
+        required: false
+        default: ""
+
+jobs:
+  enqueue:
+    runs-on: ubuntu-latest
+    steps:
+      # Generate a bot token using the official GitHub action.
+      # Remove this step and use GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} if using a PAT.
+      # - uses: actions/create-github-app-token@v3
+      #   id: app-token
+      #   with:
+      #     app-id: ${{ vars.APP_CLIENT_ID }}
+      #     private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Create milestone and fan out issues
+        env:
+          # GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO:  ${{ github.repository }}
+        run: |
+          SHA="${{ github.sha }}"
+          PARAM1="${{ github.event.inputs.param1 }}"
+          PARAM2="${{ github.event.inputs.param2 }}"
+          RUN_ID="${{ github.run_id }}"
+
+          MILESTONE=$(gh api repos/${{ github.repository }}/milestones \
+            --method POST \
+            --field title="benchmark: $SHA" \
+            --field description="$(jq -n \
+                --arg sha    "$SHA" \
+                --arg run_id "$RUN_ID" \
+                --arg p1     "$PARAM1" \
+                --arg p2     "$PARAM2" \
+                '{commit:$sha, run_id:$run_id, param1:$p1, param2:$p2}')" \
+            --jq '.number')
+
+          echo "Created milestone #$MILESTONE"
+
+          IFS=',' read -ra CLUSTERS <<< "${{ github.event.inputs.clusters }}"
+          for CLUSTER in "${CLUSTERS[@]}"; do
+            CLUSTER="${CLUSTER// /}"
+            gh issue create \
+              --title     "benchmark: $SHA @ $CLUSTER" \
+              --body      "$(jq -n \
+                  --arg sha     "$SHA" \
+                  --arg cluster "$CLUSTER" \
+                  --arg p1      "$PARAM1" \
+                  --arg p2      "$PARAM2" \
+                  '{commit:$sha, cluster:$cluster, param1:$p1, param2:$p2}')" \
+              --label     pending \
+              --label     "$CLUSTER" \
+              --milestone "$MILESTONE"
+            echo "Queued issue for $CLUSTER"
+          done
