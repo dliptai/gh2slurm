@@ -19,6 +19,8 @@ on:
 jobs:
   enqueue:
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
     steps:
       # Generate a bot token using the official GitHub action.
       # Remove this step and use GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} if using a PAT.
