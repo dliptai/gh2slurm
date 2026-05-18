@@ -11,10 +11,6 @@ on:
       param1:
         description: "First parameter"
         required: true
-      param2:
-        description: "Second parameter"
-        required: false
-        default: ""
 
 jobs:
   enqueue:
@@ -36,20 +32,18 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO:  ${{ github.repository }}
         run: |
-          SHA="${{ github.sha }}"
           PARAM1="${{ github.event.inputs.param1 }}"
-          PARAM2="${{ github.event.inputs.param2 }}"
-          RUN_ID="${{ github.run_id }}"
-          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/$RUN_ID"
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          SHA_URL="https://github.com/${{ github.repository }}/commit/${{ github.sha }}"
 
           # run_id in the title guarantees uniqueness — no duplicate milestone problem
           # gh issue create --milestone takes a name not a number, so keep both
-          MILESTONE_TITLE="benchmark: $SHA (run $RUN_ID)"
+          MILESTONE_TITLE="run ${{ github.run_id }}"
 
           # Plain Markdown description — for humans in the GitHub UI, not the daemon
-          MILESTONE_DESCRIPTION="**Commit:** \`${SHA}\`"$'\n'
-          MILESTONE_DESCRIPTION+="**Params:** \`${PARAM1}\`, \`${PARAM2}\`"$'\n'
-          MILESTONE_DESCRIPTION+="**Run:** [${RUN_ID}](${RUN_URL})"
+          MILESTONE_DESCRIPTION="**Trigger:** [${{ github.run_id }}](${RUN_URL})"
+          MILESTONE_DESCRIPTION+="**Commit:** \`[${{ github.sha }}](${SHA_URL})\`"$'\n'
+          MILESTONE_DESCRIPTION+="**Params:** \`${PARAM1}\`"$'\n'
 
           MILESTONE_NUMBER=$(gh api repos/${{ github.repository }}/milestones \
             --method POST \
@@ -65,16 +59,17 @@ jobs:
             CLUSTER="${CLUSTER// /}"
 
             ISSUE_BODY=$(jq -n \
-              --arg sha     "$SHA" \
+              --arg sha     "${{ github.sha }}" \
               --arg cluster "$CLUSTER" \
-              --arg run_id  "$RUN_ID" \
+              --arg run_id  "${{ github.run_id }}" \
               --arg run_url "$RUN_URL" \
               --arg p1      "$PARAM1" \
-              --arg p2      "$PARAM2" \
-              '{commit:$sha, cluster:$cluster, run_id:$run_id, run_url:$run_url, param1:$p1, param2:$p2}')
+              '{commit:$sha, cluster:$cluster, run_id:$run_id, run_url:$run_url, param1:$p1}')
+
+            ISSUE_TITLE="run ${{ github.run_id }}"
 
             gh issue create \
-              --title     "benchmark: $SHA @ $CLUSTER" \
+              --title     "$ISSUE_TITLE" \
               --body      "$ISSUE_BODY" \
               --label     pending \
               --label     "$CLUSTER" \
