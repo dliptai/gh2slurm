@@ -47,20 +47,28 @@ jobs:
         cluster: ${{ fromJson(github.event.inputs.clusters) }}
     steps:
       - name: Create issue for ${{ matrix.cluster }}
-        env:
-          issue_body: |
-            {
-              "commit": "${{ github.sha }}",
-              "cluster": "${{ matrix.cluster }}",
-              "run_number": "${{ github.run_number }}",
-              "run_url": "${{ env.RUN_URL }}",
-              "param1": "${{ github.event.inputs.param1 }}"
-            }
-
         run: |
+          # Create issue body
+          # Use jq for robust raw JSON construction
+          issue_body=$(
+            jq -n \
+              --arg commit "${{ github.sha }}" \
+              --arg cluster "${{ matrix.cluster }}" \
+              --arg run_number "${{ github.run_number }}" \
+              --arg run_url "${{ env.RUN_URL }}" \
+              --arg param1 "${{ github.event.inputs.param1 }}" \
+              '{
+                commit: $commit,
+                cluster: $cluster,
+                run_number: $run_number,
+                run_url: $run_url,
+                param1: $param1
+              }'
+          )
+
           gh issue create \
             --title     "bench-run ${{ github.run_number }} [$(date +%F)]" \
-            --body      "${{ toJson(env.issue_body) }}" \
+            --body      "$issue_body" \
             --label     benchmark-queue \
             --label     pending \
             --label     "${{ matrix.cluster }}" \
