@@ -5,15 +5,16 @@ on:
   workflow_dispatch:
     inputs:
       clusters:
-        description: "Comma-separated cluster names (e.g. ozstar-nt,ozstar)"
+        description: "JSON array of cluster names (e.g. ozstar-nt,ozstar)"
         required: true
-        default: "ozstar-nt,ozstar"
+        default: '["ozstar-nt", "ozstar"]'
       param1:
         description: "First parameter"
         required: true
+        default: "default value"
 
 jobs:
-  enqueue:
+  create-milestone:
     runs-on: ubuntu-latest
     permissions:
       issues: write
@@ -40,27 +41,37 @@ jobs:
             --field description="$MILESTONE_DESCRIPTION" \
             --jq '.html_url'
 
-          # Issue bodies are JSON so they can be parsed easily
-          IFS=',' read -ra CLUSTERS <<< "${{ github.event.inputs.clusters }}"
-          for CLUSTER in "${CLUSTERS[@]}"; do
-            CLUSTER="${CLUSTER// /}"
+  create-issues:
+    needs: create-milestone
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        cluster: ${{ fromJson(github.event.inputs.clusters) }}
+    steps:
+      - name: Create issue for cluster ${{ matrix.cluster }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO:  ${{ github.repository }}
+          RUN_URL: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          CLUSTER: ${{ matrix.cluster }}
+          ISSUE_TITLE: "run ${{ github.run_id }}"
+        run: |
+          # Create issue
 
-            ISSUE_BODY=$(jq -n \
-              --arg sha     "${{ github.sha }}" \
-              --arg cluster "$CLUSTER" \
-              --arg run_id  "${{ github.run_id }}" \
-              --arg run_url "$RUN_URL" \
-              --arg p1      "$PARAM1" \
-              '{commit:$sha, cluster:$cluster, run_id:$run_id, run_url:$run_url, param1:$p1}')
+          # Use JSON for issue body, so they can be parsed easily later
+          ISSUE_BODY=$(jq -n \
+            --arg sha     "${{ github.sha }}" \
+            --arg cluster "$CLUSTER" \
+            --arg run_id  "${{ github.run_id }}" \
+            --arg run_url "$RUN_URL" \
+            --arg p1      "$PARAM1" \
+            '{commit:$sha, cluster:$cluster, run_id:$run_id, run_url:$run_url, param1:$p1}')
 
-            ISSUE_TITLE="run ${{ github.run_id }}"
+          echo "Creating issue for $CLUSTER"
 
-            gh issue create \
-              --title     "$ISSUE_TITLE" \
-              --body      "$ISSUE_BODY" \
-              --label     pending \
-              --label     "$CLUSTER" \
-              --milestone "$MILESTONE_TITLE"
-
-            echo "Queued issue for $CLUSTER"
-          done
+          gh issue create \
+            --title     "$ISSUE_TITLE" \
+            --body      "$ISSUE_BODY" \
+            --label     pending \
+            --label     "$CLUSTER" \
+            --milestone "$MILESTONE_TITLE"
