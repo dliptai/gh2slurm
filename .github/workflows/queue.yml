@@ -40,34 +40,45 @@ jobs:
           PARAM1="${{ github.event.inputs.param1 }}"
           PARAM2="${{ github.event.inputs.param2 }}"
           RUN_ID="${{ github.run_id }}"
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/$RUN_ID"
 
-          MILESTONE=$(gh api repos/${{ github.repository }}/milestones \
+          # run_id in the title guarantees uniqueness — no duplicate milestone problem
+          # gh issue create --milestone takes a name not a number, so keep both
+          MILESTONE_TITLE="benchmark: $SHA (run $RUN_ID)"
+
+          # Plain Markdown description — for humans in the GitHub UI, not the daemon
+          MILESTONE_DESCRIPTION="**Commit:** \`${SHA}\`"$'\n'
+          MILESTONE_DESCRIPTION+="**Params:** \`${PARAM1}\`, \`${PARAM2}\`"$'\n'
+          MILESTONE_DESCRIPTION+="**Run:** [${RUN_ID}](${RUN_URL})"
+
+          MILESTONE_NUMBER=$(gh api repos/${{ github.repository }}/milestones \
             --method POST \
-            --field title="benchmark: $SHA (run $RUN_ID)" \
-            --field description="$(jq -n \
-                --arg sha    "$SHA" \
-                --arg run_id "$RUN_ID" \
-                --arg run_url "https://github.com/${{ github.repository }}/actions/runs/$RUN_ID" \
-                --arg p1     "$PARAM1" \
-                --arg p2     "$PARAM2" \
-                '{commit:$sha, run_id:$run_id, run_url:$run_url,param1:$p1, param2:$p2}')" \
+            --field title="$MILESTONE_TITLE" \
+            --field description="$MILESTONE_DESCRIPTION" \
             --jq '.number')
 
-          echo "Created milestone #$MILESTONE"
+          echo "Created milestone #$MILESTONE_NUMBER: $MILESTONE_TITLE"
 
+          # Issue bodies are JSON so the daemon can parse them into PAYLOAD_* variables
           IFS=',' read -ra CLUSTERS <<< "${{ github.event.inputs.clusters }}"
           for CLUSTER in "${CLUSTERS[@]}"; do
             CLUSTER="${CLUSTER// /}"
+
+            ISSUE_BODY=$(jq -n \
+              --arg sha     "$SHA" \
+              --arg cluster "$CLUSTER" \
+              --arg run_id  "$RUN_ID" \
+              --arg run_url "$RUN_URL" \
+              --arg p1      "$PARAM1" \
+              --arg p2      "$PARAM2" \
+              '{commit:$sha, cluster:$cluster, run_id:$run_id, run_url:$run_url, param1:$p1, param2:$p2}')
+
             gh issue create \
               --title     "benchmark: $SHA @ $CLUSTER" \
-              --body      "$(jq -n \
-                  --arg sha     "$SHA" \
-                  --arg cluster "$CLUSTER" \
-                  --arg p1      "$PARAM1" \
-                  --arg p2      "$PARAM2" \
-                  '{commit:$sha, cluster:$cluster, param1:$p1, param2:$p2}')" \
+              --body      "$ISSUE_BODY" \
               --label     pending \
               --label     "$CLUSTER" \
-              --milestone "$MILESTONE"
+              --milestone "$MILESTONE_TITLE"
+
             echo "Queued issue for $CLUSTER"
           done
