@@ -27,6 +27,8 @@ jobs:
           PARAM1: "${{ github.event.inputs.param1 }}"
           MILESTONE_TITLE: "run ${{ github.run_id }}"  # use run_id for uniqueness
         run: |
+          # Create milestone and attach issues.
+
           # Plain Markdown description — for humans in the GitHub UI, not the daemon
           MILESTONE_DESCRIPTION="**Trigger:** [${{ github.run_id }}](${RUN_URL})"$'\n'
           MILESTONE_DESCRIPTION+="**Commit:** [${{ github.sha }}](${SHA_URL})"$'\n'
@@ -35,7 +37,8 @@ jobs:
           gh api repos/${{ github.repository }}/milestones \
             --method POST \
             --field title="$MILESTONE_TITLE" \
-            --field description="$MILESTONE_DESCRIPTION"
+            --field description="$MILESTONE_DESCRIPTION" \
+            --jq '.html_url'
 
           # Issue bodies are JSON so they can be parsed easily
           IFS=',' read -ra CLUSTERS <<< "${{ github.event.inputs.clusters }}"
