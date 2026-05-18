@@ -15,8 +15,8 @@ on:
 env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   GH_REPO:  ${{ github.repository }}
-  TITLE: "Run-${{ github.run_id }}"  # use run_id for uniqueness
-  RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+  MILESTONE: "Benchmarks run ${{ github.run_number }}"  # use run_number for uniqueness
+  RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_number }}
 
 jobs:
   create-milestone:
@@ -27,13 +27,13 @@ jobs:
       - name: Create milestone
         env:
           description: |
-            **Trigger:** [${{ github.run_id }}](${{ env.RUN_URL }})
+            **Workflow:** [${{ github.run_number }}](${{ env.RUN_URL }})
             **Commit:** [${{ github.sha }}](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
             **Params:** \`${{ github.event.inputs.param1 }}\`
         run: |
           gh api repos/${{ github.repository }}/milestones \
             --method POST \
-            --field title="${{ env.TITLE }}" \
+            --field title="${{ env.MILESTONE }}" \
             --field description="${{ env.description }}" \
             --jq '.html_url'
 
@@ -52,15 +52,16 @@ jobs:
             {
               "commit": "${{ github.sha }}",
               "cluster": "${{ matrix.cluster }}",
-              "run_id": "${{ github.run_id }}",
+              "run_number": "${{ github.run_number }}",
               "run_url": "${{ env.RUN_URL }}",
               "param1": "${{ github.event.inputs.param1 }}"
             }
 
         run: |
           gh issue create \
-            --title     "${{ env.TITLE }}" \
-            --body      '${{ toJson(env.issue_body) }}' \
+            --title     "bench-run ${{ github.run_number }} [$(date +%F)]" \
+            --body      "${{ toJson(env.issue_body) }}" \
+            --label     benchmark-queue \
             --label     pending \
             --label     "${{ matrix.cluster }}" \
-            --milestone "${{ env.TITLE }}"
+            --milestone "${{ env.MILESTONE }}"
