@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       clusters:
-        description: "JSON array of cluster names (e.g. ozstar-nt,ozstar)"
+        description: 'JSON array of cluster names (e.g. ["ozstar-nt", "ozstar"] )'
         required: true
         default: '["ozstar-nt", "ozstar"]'
       param1:
@@ -61,7 +61,7 @@ jobs:
           # Create issue
 
           # Convert issue_body to JSON string for gh CLI
-          BODY="${{ toJson(env.issue_body) }}"
+          BODY='${{ toJson(env.issue_body) }}'
 
           echo "Creating issue for $CLUSTER"
 
