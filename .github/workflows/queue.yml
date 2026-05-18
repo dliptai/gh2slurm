@@ -21,6 +21,8 @@ env:
 jobs:
   create-milestone:
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
     steps:
       - name: Create milestone
         env:
