@@ -1,5 +1,4 @@
-# .github/workflows/queue-enqueue.yml
-name: Enqueue benchmark
+name: Queue benchmarks
 
 on:
   workflow_dispatch:
@@ -13,48 +12,42 @@ on:
         required: true
         default: "default value"
 
+env:
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  GH_REPO:  ${{ github.repository }}
+  TITLE: "Run-${{ github.run_id }}"  # use run_id for uniqueness
+  RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
 jobs:
   create-milestone:
     runs-on: ubuntu-latest
-    permissions:
-      issues: write
     steps:
-      - name: Create milestone and fan out issues
+      - name: Create milestone
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO:  ${{ github.repository }}
-          RUN_URL: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          SHA_URL: "https://github.com/${{ github.repository }}/commit/${{ github.sha }}"
-          PARAM1: "${{ github.event.inputs.param1 }}"
-          MILESTONE_TITLE: "run ${{ github.run_id }}"  # use run_id for uniqueness
+          DESCRIPTION: |
+            **Trigger:** [${{ github.run_id }}](${RUN_URL})
+            **Commit:** [${{ github.sha }}](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
+            **Params:** \`${{ github.event.inputs.param1 }}\`
         run: |
-          # Create milestone and attach issues.
-
-          # Plain Markdown description — for humans in the GitHub UI, not the daemon
-          MILESTONE_DESCRIPTION="**Trigger:** [${{ github.run_id }}](${RUN_URL})"$'\n'
-          MILESTONE_DESCRIPTION+="**Commit:** [${{ github.sha }}](${SHA_URL})"$'\n'
-          MILESTONE_DESCRIPTION+="**Params:** \`${PARAM1}\`"$'\n'
-
           gh api repos/${{ github.repository }}/milestones \
             --method POST \
-            --field title="$MILESTONE_TITLE" \
-            --field description="$MILESTONE_DESCRIPTION" \
+            --field title="$TITLE" \
+            --field description="$DESCRIPTION" \
             --jq '.html_url'
 
   create-issues:
     needs: create-milestone
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
     strategy:
       matrix:
         cluster: ${{ fromJson(github.event.inputs.clusters) }}
     steps:
-      - name: Create issue for cluster ${{ matrix.cluster }}
+      - name: Create issue for ${{ matrix.cluster }}
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO:  ${{ github.repository }}
-          RUN_URL: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          RUN_URL: ${{ env.RUN_URL }}
           CLUSTER: ${{ matrix.cluster }}
-          ISSUE_TITLE: "run ${{ github.run_id }}"
         run: |
           # Create issue
 
@@ -70,8 +63,8 @@ jobs:
           echo "Creating issue for $CLUSTER"
 
           gh issue create \
-            --title     "$ISSUE_TITLE" \
+            --title     "$TITLE" \
             --body      "$ISSUE_BODY" \
             --label     pending \
             --label     "$CLUSTER" \
-            --milestone "$MILESTONE_TITLE"
+            --milestone "$TITLE"
