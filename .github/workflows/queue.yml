@@ -55,21 +55,22 @@ jobs:
               --arg commit "${{ github.sha }}" \
               --arg cluster "${{ matrix.cluster }}" \
               --arg run_number "${{ github.run_number }}" \
-              --arg run_url "${{ env.RUN_URL }}" \
               --arg param1 "${{ github.event.inputs.param1 }}" \
               '{
                 commit: $commit,
                 cluster: $cluster,
                 run_number: $run_number,
-                run_url: $run_url,
                 param1: $param1
               }'
           )
 
-          gh issue create \
+          ISSUE=$(gh issue create \
             --title     "bench-run ${{ github.run_number }} [$(date +%F)]" \
             --body      "$issue_body" \
             --label     benchmark-queue \
             --label     pending \
             --label     "${{ matrix.cluster }}" \
-            --milestone "${{ env.MILESTONE }}"
+            --milestone "${{ env.MILESTONE }}" \
+            --jq '.[0] // empty' )
+
+          gh issue comment $(echo $ISSUE | jq -r '.number') --body "${{ env.RUN_URL }}"
