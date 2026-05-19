@@ -23,19 +23,26 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       issues: write
+    outputs:
+      milestone_number: ${{ steps.milestone.outputs.milestone_number }}
     steps:
       - name: Create milestone
+        id: milestone
         env:
           description: |
             **Workflow:** [${{ github.run_number }}](${{ env.RUN_URL }})
             **Commit:** [${{ github.sha }}](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
             **Params:** \`${{ github.event.inputs.param1 }}\`
         run: |
-          gh api repos/${{ github.repository }}/milestones \
+          MILESTONE=$(gh api repos/${{ github.repository }}/milestones \
             --method POST \
             --field title="${{ env.MILESTONE }}" \
-            --field description="${{ env.description }}" \
-            --jq '.html_url'
+            --field description="${{ env.description }}" )
+
+          echo $MILESTONE | jq -r '.html_url'
+
+          # Set the milestone number as an output for use in subsequent jobs
+          echo milestone_number=$(echo $MILESTONE | jq -r '.number') >> $GITHUB_OUTPUT
 
   create-issues:
     needs: create-milestone
@@ -64,6 +71,8 @@ jobs:
               }'
           )
 
+          MILESTONE_NUMBER=${{ needs.create-milestone.outputs.milestone_number }}
+
           ISSUE=$(gh api repos/${{ github.repository }}/issues \
             --method POST \
             --raw-field title="bench-run ${{ github.run_number }} [$(date +%F)]" \
@@ -71,7 +80,7 @@ jobs:
             --field labels[]=benchmark-queue \
             --field labels[]=pending \
             --field labels[]="${{ matrix.cluster }}" \
-            --field milestone="${{ env.MILESTONE }}"
+            --field milestone="$MILESTONE_NUMBER"
           )
 
           gh issue comment $(echo $ISSUE | jq -r '.number') --body "${{ env.RUN_URL }}"
