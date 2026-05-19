@@ -60,12 +60,10 @@ jobs:
           issue_body=$(
             jq -n \
               --arg commit "${{ github.sha }}" \
-              --arg cluster "${{ matrix.cluster }}" \
               --arg run_number "${{ github.run_number }}" \
               --arg param1 "${{ github.event.inputs.param1 }}" \
               '{
                 commit: $commit,
-                cluster: $cluster,
                 run_number: $run_number,
                 param1: $param1
               }'
@@ -83,4 +81,5 @@ jobs:
             --field milestone="$MILESTONE_NUMBER"
           )
 
-          gh issue comment $(echo $ISSUE | jq -r '.number') --body "${{ env.RUN_URL }}"
+          gh issue comment $(echo $ISSUE | jq -r '.number') --body "Triggered by [run ${{ github.run_number }}](${{ env.RUN_URL }})"
+          echo $ISSUE | jq -r '.html_url'
