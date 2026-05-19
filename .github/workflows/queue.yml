@@ -16,7 +16,7 @@ env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   GH_REPO:  ${{ github.repository }}
   MILESTONE: "Benchmarks run ${{ github.run_number }}"  # use run_number for uniqueness
-  RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_number }}
+  RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
 jobs:
   create-milestone:
