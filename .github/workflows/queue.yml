@@ -66,9 +66,8 @@ jobs:
 
           ISSUE=$(gh api repos/${{ github.repository }}/issues \
             --field title="bench-run ${{ github.run_number }} [$(date +%F)]" \
-            --field body ="$issue_body" \
-            --field label='["benchmark-queue", "pending", "${{ matrix.cluster }}"]' \
-            --field milestone="${{ env.MILESTONE }}" \
-            --jq '.[0] // empty' )
+            --field body="$issue_body" \
+            --field labels='["benchmark-queue", "pending", "${{ matrix.cluster }}"]' \
+            --field milestone="${{ env.MILESTONE }}" )
 
           gh issue comment $(echo $ISSUE | jq -r '.number') --body "${{ env.RUN_URL }}"
