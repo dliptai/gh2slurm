@@ -76,7 +76,6 @@ jobs:
             --raw-field title="bench-run ${{ github.run_number }} [$(date +%F)]" \
             --raw-field body="$issue_body" \
             --field labels[]=benchmark-queue \
-            --field labels[]=pending \
             --field labels[]="${{ matrix.cluster }}" \
             --field milestone="$MILESTONE_NUMBER"
           )
