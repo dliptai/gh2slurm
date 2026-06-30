@@ -1,0 +1,16 @@
+1. Searching with issues authored by bots
+-----------------------------------------
+It's not obvious how to properly filter for "bot" authors using the github api, specifically the graphql api.
+Undocumented solution is to append "[bot]" to the author field.
+See: https://stackoverflow.com/a/76365958
+
+Similarly, the github cli "--app xyz" flag doesn't seem to function properly.
+Solution is to force the use of the REST endpoint instead of GraphQL by either,
+a) Use the search issues or search prs commands with the --author app/github-actions flag set.
+b) Use the issue list or pr list commands with the --search author:app/github-actions flag instead of the --app flag.
+See: https://github.com/cli/cli/issues/5888
+
+2. GitHub actions "Create App Token"
+If bot needs to be triggered from actions OUTSIDE of the repo, i.e. from another repo, use the following 
+https://github.com/actions/create-github-app-token
+instead of manually generating app tokens.
