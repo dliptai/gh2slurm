@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+mkdir -p ./bin
+version=$(curl -fsSL https://api.github.com/repos/cli/cli/releases/latest | jq -r .tag_name)
+curl -fsSL "https://github.com/cli/cli/releases/download/${version}/gh_${version#v}_linux_amd64.tar.gz" | tar -xz --strip-components=2 -C ./bin '*/bin/gh'
+set -x
+./bin/gh --version
