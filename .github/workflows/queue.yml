@@ -6,7 +6,8 @@ on:
       clusters:
         description: 'JSON array of cluster names (e.g. ["ozstar-nt", "ozstar"] )'
         required: true
-        default: '["ozstar-nt", "ozstar"]'
+        # default: '["ozstar-nt", "ozstar"]'
+        default: '["ozstar"]'
       param1:
         description: "First parameter"
         required: true
@@ -69,15 +70,14 @@ jobs:
               }'
           )
 
-          MILESTONE_NUMBER=${{ needs.create-milestone.outputs.milestone_number }}
-
           ISSUE=$(gh api repos/${{ github.repository }}/issues \
             --method POST \
             --raw-field title="bench-run ${{ github.run_number }} [$(date +%F)]" \
             --raw-field body="$issue_body" \
             --field labels[]=benchmark-queue \
             --field labels[]="${{ matrix.cluster }}" \
-            --field milestone="$MILESTONE_NUMBER"
+            --field labels[]=unclaimed \
+            --field milestone="${{ needs.create-milestone.outputs.milestone_number }}"
           )
 
           gh issue comment $(echo $ISSUE | jq -r '.number') --body "Triggered by [run ${{ github.run_number }}](${{ env.RUN_URL }})"
