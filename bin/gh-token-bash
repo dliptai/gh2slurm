@@ -1,9 +1,12 @@
-#!/usr/bin/env bash
-# github-app-token.sh
-# Usage: export GH_TOKEN=$(bash github-app-token.sh)
-# Ref: https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-json-web-token-jwt-for-a-github-app
-
+#!/bin/bash
 set -o pipefail
+# --------------------------------------------------------------------
+# A bash implementation of "gh-token" to generate a GitHub App token
+# without requiring the gh-token CLI tool.
+# Ref: https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-json-web-token-jwt-for-a-github-app
+# Usage:
+#   ./gh-token-bash <app_id> <install_id> <key>
+# --------------------------------------------------------------------
 
 GH_APP_ID="${1:?Usage: ${BASH_SOURCE[0]} <app_id> <install_id> <key>}"
 GH_APP_INSTALL_ID="${2:?Usage: ${BASH_SOURCE[0]} <app_id> <install_id> <key>}"
