@@ -99,6 +99,7 @@ $timing
 EOF
 )"
 
+  gh issue edit "$ISSUE_NUMBER" --remove-label "running"
   gh issue close "$ISSUE_NUMBER" --comment "$body" 2>&1 | sed 's/✓ //g'
   exit 0
 fi
