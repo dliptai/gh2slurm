@@ -58,17 +58,16 @@ function get_issue() {
   gh issue list \
     --label "$QUEUE_LABEL" \
     --label "$cluster_name" \
-    --label unclaimed \
     --state open \
     --limit 1 \
-    --search "sort:created-asc author:app/github-actions" \
+    --search "sort:created-asc author:app/github-actions -label:running -label:failed" \
     --json number,title,body,milestone \
     --jq '.[0] // empty'
 }
 
 function claim_issue() {
   local issue_number="${1:?Usage: claim_issue <issue-number>}"
-  gh issue edit "$issue_number" --remove-label unclaimed
+  gh issue edit "$issue_number" --add-label running
 }
 
 #-------------------------------------------------------------

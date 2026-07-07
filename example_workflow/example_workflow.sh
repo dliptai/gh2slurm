@@ -119,6 +119,6 @@ get_gh_token "$GH_APP_ID" "$GH_APP_INSTALL_ID" "$GH_APP_KEY"
 if [ $ec -ne 0 ]; then
   echo "ERROR: sub-shell failed."
   gh issue comment "$ISSUE_NUMBER" --body "Slurm job $SLURM_JOB_ID failed"
-  gh issue edit "$ISSUE_NUMBER" --add-label "failed"
+  gh issue edit "$ISSUE_NUMBER" --remove-label "running" --add-label "failed"
   exit 1
 fi

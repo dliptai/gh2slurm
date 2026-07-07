@@ -77,7 +77,7 @@ EOF
 )"
 
   gh issue comment "$ISSUE_NUMBER" --body "$body"
-  gh issue edit "$ISSUE_NUMBER" --add-label "failed"
+  gh issue edit "$ISSUE_NUMBER" --remove-label "running" --add-label "failed"
   exit 1
 
 else

@@ -1,13 +1,12 @@
-name: Queue benchmarks
+name: JobQueue
 
 on:
   workflow_dispatch:
     inputs:
       clusters:
-        description: 'JSON array of cluster names (e.g. ["ozstar-nt", "ozstar"] )'
+        description: 'JSON array of cluster names (e.g. ["ozstar", "another-cluster"] )'
         required: true
-        # default: '["ozstar-nt", "ozstar"]'
-        default: '["ozstar"]'
+        default: '["ozstar", "another-cluster"]'
       param1:
         description: "First parameter"
         required: true
@@ -16,8 +15,10 @@ on:
 env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   GH_REPO:  ${{ github.repository }}
-  MILESTONE: "Benchmarks run ${{ github.run_number }}"  # use run_number for uniqueness
+  MILESTONE: "Run ${{ github.run_number }}"  # use run_number for uniqueness
   RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+  QUEUE_LABEL: job-queue
+  JOB_TITLE: job
 
 jobs:
   create-milestone:
@@ -72,11 +73,10 @@ jobs:
 
           ISSUE=$(gh api repos/${{ github.repository }}/issues \
             --method POST \
-            --raw-field title="bench-run ${{ github.run_number }} [$(date +%F)]" \
+            --raw-field title="${{ env.JOB_TITLE }} - run ${{ github.run_number }} [$(date +%F)]" \
             --raw-field body="$issue_body" \
-            --field labels[]=benchmark-queue \
+            --field labels[]="${{ env.QUEUE_LABEL }}" \
             --field labels[]="${{ matrix.cluster }}" \
-            --field labels[]=unclaimed \
             --field milestone="${{ needs.create-milestone.outputs.milestone_number }}"
           )
 
