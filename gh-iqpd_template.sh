@@ -25,8 +25,8 @@ export GH_REPO="<<GH_USERNAME/GH_REPONAME>>"
 #-------------------------------------------------------------
 # Add CLI tools to PATH
 #-------------------------------------------------------------
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-PATH="$SCRIPT_DIR/bin:$PATH"
+export GH_CLI_BIN="$PWD/bin"
+PATH="$GH_CLI_BIN:$PATH"
 
 #-------------------------------------------------------------
 # Check for required commands

@@ -8,8 +8,7 @@ set -euo pipefail
 #-------------------------------------------------------------
 # Add CLI tools to PATH
 #-------------------------------------------------------------
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-PATH="$SCRIPT_DIR/../bin:$PATH"
+PATH="$GH_CLI_BIN:$PATH"
 
 #-------------------------------------------------------------
 # Check for required commands
