@@ -97,7 +97,7 @@ else
   # Submit the work job to the queue, passing the issue as an argument.
   # Also pass the GitHub App credentials to the job, so it can generate it's own token if needed.
   job="$(sbatch --export=ALL --parsable --chdir ./example_workflow ./example_workflow/example_workflow.sh "$ISSUE")"
-  jobstr="Submitted workflow. JobID: $job"
+  jobstr="Submitted workflow, jobid: $job"
   gh issue comment "$NUMBER" --body "$jobstr" > /dev/null
   echo "$jobstr"
 fi
