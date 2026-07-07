@@ -85,12 +85,12 @@ set +e   # Ensure that a failure of the sub-shell doesn't kill the script
   # Download the code you want to be working with.
   # This can be replaced by e.g. a git clone command, or a wget/curl command to download a tarball, etc.
   # In our case, the example code lives in the same repo, but we're showing the download as a separate step to illustrate the workflow.
-  curl -sSL \
-    "https://github.com/${GH_REPO}/archive/${commit_hash}.tar.gz" | \
-    tar xz --strip-components=1 "*/example_code"
+  url="https://github.com/${GH_REPO}/archive/${commit_hash}.tar.gz"
+  echo "Downloading code from $url"
+  curl -sSL "$url" | tar xz --strip-components=1 "*/example_code"
+  cd example_code
 
   # Run the example workflow, which consists of three jobs:
-  cd example_code
 
   # Submit build job
   JOB1="$(sbatch --parsable --partition="$PARTITION_COMPUTE" build_code.sh)"
