@@ -86,7 +86,7 @@ set +e   # Ensure that a failure of the sub-shell doesn't kill the script
   # This can be replaced by e.g. a git clone command, or a wget/curl command to download a tarball, etc.
   # In our case, the example code lives in the same repo, but we're showing the download as a separate step to illustrate the workflow.
   curl -sSL \
-    "https://github.com/dliptai/hpc-benchmarking-test/archive/$commit_hash.tar.gz" | \
+    "https://github.com/${GH_REPO}/archive/${commit_hash}.tar.gz" | \
     tar xz --strip-components=2 "*/example_work/example_code"
 
   # Run the example workflow, which consists of three jobs:
