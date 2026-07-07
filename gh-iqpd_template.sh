@@ -96,8 +96,9 @@ else
   echo "$ISSUE" | jq -r '.body'
   # Submit the work job to the queue, passing the issue as an argument.
   # Also pass the GitHub App credentials to the job, so it can generate it's own token if needed.
-  MYJOB="$(sbatch --export=GH_REPO,GH_APP_ID,GH_APP_INSTALL_ID,GH_APP_KEY --chdir ./example_work ./example_work/example_work.sh "$ISSUE")"
-  gh issue comment "$NUMBER" --body "$MYJOB" > /dev/null
-  echo "$MYJOB"
+  job="$(sbatch --export=ALL --parsable --chdir ./example_work ./example_work/example_work.sh "$ISSUE")"
+  jobstr="Submitted workflow. JobID: $job"
+  gh issue comment "$NUMBER" --body "$jobstr" > /dev/null
+  echo "$jobstr"
 fi
 echo "+++++++++++++++ Stopping daemon job $SLURM_JOB_ID [$(date "+%Y-%b-%d %H:%M:%S")] +++++++++++++++"
