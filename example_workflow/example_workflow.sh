@@ -87,7 +87,7 @@ set +e   # Ensure that a failure of the sub-shell doesn't kill the script
   # In our case, the example code lives in the same repo, but we're showing the download as a separate step to illustrate the workflow.
   curl -sSL \
     "https://github.com/${GH_REPO}/archive/${commit_hash}.tar.gz" | \
-    tar xz --strip-components=2 "*/example_work/example_code"
+    tar xz --strip-components=2 "*/example_workflow/example_code"
 
   # Run the example workflow, which consists of three jobs:
   cd example_code
