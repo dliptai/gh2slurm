@@ -26,14 +26,6 @@ gh_setup() {
   local item
   local req_vars=(GH_APP_ID GH_APP_INSTALL_ID GH_APP_KEY GH_REPO GH_CLI_BIN)
 
-  # Check for required commands
-  for item in gh gh-token jq; do
-    if ! command -v $item >/dev/null 2>&1 ; then
-      echo "ERROR: '$item' is required but not in PATH. Aborting." >&2
-      exit 1
-    fi
-  done
-
   # Check for required environment variables
   for item in "${req_vars[@]}"; do
     if [ -z "${!item}" ]; then
@@ -47,6 +39,14 @@ gh_setup() {
 
   # Add CLI tools to PATH
   PATH="$GH_CLI_BIN:$PATH"
+
+  # Check for required commands
+  for item in gh gh-token jq; do
+    if ! command -v $item >/dev/null 2>&1 ; then
+      echo "ERROR: '$item' is required but not in PATH. Aborting." >&2
+      exit 1
+    fi
+  done
 
   # Generate and export GitHub App token
   GH_TOKEN="$(gh-token generate --token-only \
