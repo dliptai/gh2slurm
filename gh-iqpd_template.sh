@@ -62,7 +62,7 @@ gh_setup() {
   fi
 
   # Create a list of variables to export to child jobs if they need github access
-  GH_EXPORT_LIST="GH_EXPORT_LIST,${FUNCNAME[0]},$(IFS=,; echo "${req_vars[*]}")"s
+  GH_EXPORT_LIST="GH_EXPORT_LIST,BASH_FUNC_${FUNCNAME[0]}%%,$(IFS=,; echo "${req_vars[*]}")"
   export GH_EXPORT_LIST
 }
 
