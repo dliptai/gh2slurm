@@ -6,55 +6,12 @@
 #SBATCH --output="workflow-%j.out"
 set -euo pipefail
 
-#-------------------------------------------------------------
-# Add CLI tools to PATH
-#-------------------------------------------------------------
-PATH="$GH_CLI_BIN:$PATH"
+# Run GitHub setup
+gh_setup
 
-#-------------------------------------------------------------
-# Check for required commands
-#-------------------------------------------------------------
-for item in gh gh-token jq; do
-  if ! command -v $item >/dev/null 2>&1 ; then
-    echo "ERROR: '$item' is required but not in PATH. Aborting." >&2
-    exit 1
-  fi
-done
-
-#-------------------------------------------------------------
-# Useful function to generate GitHub App token
-#-------------------------------------------------------------
-function get_gh_token() {
-  local app_id="${1:?Usage: get_gh_token <app-id> <installation-id> <key>}"
-  local installation_id="${2:?Usage: get_gh_token <app-id> <installation-id> <key>}"
-  local key="${3:?Usage: get_gh_token <app-id> <installation-id> <key>}"
-  GH_TOKEN="$(gh-token generate \
-    --app-id "$app_id" \
-    --installation-id "$installation_id" \
-    --key "$key" | jq -r '.token')"
-  if [[ -z "$GH_TOKEN" ]]; then
-    echo "Failed to generate GitHub token. Aborting." >&2
-    exit 1
-  else
-    export GH_TOKEN
-  fi
-}
-
-#+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-#-----------------------------------------------------------------------------
-# This is an example of a workflow that could be triggered.
-#-----------------------------------------------------------------------------
-
-ISSUE="${1:?Usage: ${BASH_SOURCE[0]} <issue>}"  # Take issue as input
+# Take issue as input
+ISSUE="${1:?Usage: ${BASH_SOURCE[0]} <issue>}"
 ISSUE_NUMBER="$(echo "$ISSUE" | jq -r '.number')"
-
-#-----------------------------------------------------------------------------
-# Partitions to use for the jobs.
-# These should be replaced with partitions that have the required resources.
-#-----------------------------------------------------------------------------
-PARTITION_COMPUTE="$SLURM_JOB_PARTITION"     # Replace with a partition that has compute nodes
-PARTITION_INTERNET="$SLURM_JOB_PARTITION"    # Replace with a partition that has internet access
 
 #------------------------------------------------------------------------------
 # Example "job", run in a sub-shell. This can submit a chain of
@@ -67,6 +24,10 @@ PARTITION_INTERNET="$SLURM_JOB_PARTITION"    # Replace with a partition that has
 set +e   # Ensure that a failure of the sub-shell doesn't kill the script
 (
   set -euo pipefail # Fail fast
+
+  # Partitions to use for the jobs.
+  partition_compute="$SLURM_JOB_PARTITION"     # Replace with a partition that has compute nodes
+  partition_internet="$SLURM_JOB_PARTITION"    # Replace with a partition that has internet access
 
   # Get the commit hash we want to work with from the issue body.
   commit_hash="$(echo "$ISSUE" | jq -r '.body' | jq -r '.commit')"
@@ -93,15 +54,15 @@ set +e   # Ensure that a failure of the sub-shell doesn't kill the script
   # Run the example workflow, which consists of three jobs:
 
   # Submit build job
-  JOB1="$(sbatch --parsable --partition="$PARTITION_COMPUTE" build_code.sh)"
+  JOB1="$(sbatch --parsable --partition="$partition_compute" build_code.sh)"
 
   # Submit a second job to run the benchmarks, which depends on the first job's success
-  JOB2="$(sbatch --parsable --partition="$PARTITION_COMPUTE" --dependency="afterok:$JOB1" benchmark_code.sh)"
+  JOB2="$(sbatch --parsable --partition="$partition_compute" --dependency="afterok:$JOB1" benchmark_code.sh)"
 
   # Submit the final job, which runs regardless of success or failure
   JOB3="$(sbatch --parsable \
-                --export=GH_REPO,GH_APP_ID,GH_APP_INSTALL_ID,GH_APP_KEY,GH_CLI_BIN \
-                --partition="$PARTITION_INTERNET" \
+                --export="${GH_EXPORT_LIST}" \
+                --partition="$partition_internet" \
                 --dependency="afterany:$JOB1:$JOB2" \
                 publish_results.sh "$ISSUE")"
 
@@ -115,7 +76,6 @@ set -e # Turn fail fast back on
 #-------------------------------------------------------------
 # Publish the results
 #-------------------------------------------------------------
-get_gh_token "$GH_APP_ID" "$GH_APP_INSTALL_ID" "$GH_APP_KEY"
 if [ $ec -ne 0 ]; then
   echo "ERROR: sub-shell failed."
   gh issue comment "$ISSUE_NUMBER" --body "Slurm job $SLURM_JOB_ID failed"
