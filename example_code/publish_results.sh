@@ -25,7 +25,7 @@ results_table="$(sacct -j "$PARENT_IDS" -X --format=JobName,JobID,State,ExitCode
 echo "$results_table"
 
 if sacct -j "$PARENT_IDS" -X --format=State --noheader --parsable2 | grep -qv '^COMPLETED$'; then
-  echo "ERROR: Some jobs are not 'COMPLETED'"
+  echo "ERROR: Some jobs are not 'COMPLETED'" >&2
 
   body="$(cat << EOF
 Some jobs failed. Please check the Slurm job logs for details.
@@ -35,8 +35,10 @@ $results_table
 EOF
 )"
 
-  gh issue comment "$ISSUE_NUMBER" --body "$body"
-  gh issue edit "$ISSUE_NUMBER" --remove-label "running" --add-label "failed"
+  echo "$body" >&2
+
+  gh issue comment "$ISSUE_NUMBER" --body "$body" >&2
+  gh issue edit "$ISSUE_NUMBER" --remove-label "running" --add-label "failed" >&2
   exit 1
 
 else
