@@ -19,48 +19,58 @@ RAW_IDS="${SLURM_JOB_DEPENDENCY#*:}"
 # Replace colons with commas so sacct can read them all at once
 PARENT_IDS="${RAW_IDS//:/,}"
 
-# Collect and publish the results. Query all parents simultaneously
-echo "Checking parents: $PARENT_IDS"
-results_table="$(sacct -j "$PARENT_IDS" -X --format=JobName,JobID,State,ExitCode)"
-echo "$results_table"
+# Query the state of parent jobs
+STATES="$(sacct -j "$PARENT_IDS" -X --format=JobName,JobID,State,ExitCode || echo '[no parent jobs found]')"
 
+# Check if any parent jobs not in "COMPLETED" state
 if sacct -j "$PARENT_IDS" -X --format=State --noheader --parsable2 | grep -qv '^COMPLETED$'; then
-  echo "ERROR: Some jobs are not 'COMPLETED'" >&2
-
-  body="$(cat << EOF
-Some jobs failed. Please check the Slurm job logs for details.
-\`\`\`
-$results_table
-\`\`\`
-EOF
-)"
-
-  echo "$body" >&2
-
-  gh issue comment "$ISSUE_NUMBER" --body "$body" >&2
-  gh issue edit "$ISSUE_NUMBER" --remove-label "running" --add-label "failed" >&2
-  exit 1
-
+  STATE=FAILED
 else
+  STATE=COMPLETED
+fi
 
-  # Collect job timing
-  timing="$(grep 'Execution time' timings.txt || echo "No timing information found")"
-
-  body="$(cat << EOF
-All jobs completed successfully.
+# Construct the header
+HEADER="$(cat << EOF
+\`$SLURM_JOB_NAME $SLURM_JOB_ID $STATE\`
+Parent jobs:
 \`\`\`
-$results_table
+$STATES
 \`\`\`
-
-Timing:
-\`\`\`
-$timing
-\`\`\`
-
 EOF
 )"
 
-  gh issue edit "$ISSUE_NUMBER" --remove-label "running"
-  gh issue close "$ISSUE_NUMBER" --comment "$body" 2>&1 | sed 's/✓ //g'
-  exit 0
+# Construct the footer
+if [[ "$FAILED" == "yes" ]]; then
+  FOOTER="Please check the Slurm job logs for details."
+else
+  FOOTER="$(cat << EOF
+
+Timing results:
+\`\`\`
+$(grep 'Execution time' timings.txt || echo "No timing information found")
+\`\`\`
+EOF
+)"
+fi
+
+# Construct full body
+BODY="$(cat << EOF
+$HEADER
+$FOOTER
+EOF
+)"
+
+# Print to logfile
+echo "$BODY"
+
+# Publish and un-claim
+gh issue comment "$ISSUE_NUMBER" --body "$BODY"
+gh issue edit "$ISSUE_NUMBER" --remove-label "running"
+
+# Close or mark as failed
+if [[ "$STATE" == "FAILED" ]]; then
+  gh issue edit "$ISSUE_NUMBER" --add-label "failed"
+  exit 1
+else
+  gh issue close "$ISSUE_NUMBER" 2>&1 | sed 's/✓ //g'
 fi

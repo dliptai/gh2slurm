@@ -77,11 +77,11 @@ JOB3="$(sbatch --parsable \
               publish_results.sh "$ISSUE")"
 
 # Publish the job IDs to the GitHub issue
-jobstr="$(cat <<EOF
-Submitted workflow:
+JOBSTR="$(cat <<EOF
+Workflow:
 \`\`\`
 $(sacct -j "$JOB1,$JOB2,$JOB3" -X --format=JobName,JobID)
 \`\`\`
 EOF
 )"
-gh issue comment "$ISSUE_NUMBER" --body "$jobstr"
+gh issue comment "$ISSUE_NUMBER" --body "$JOBSTR"

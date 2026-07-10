@@ -112,15 +112,15 @@ else
 
   # Submit the work job to the queue, passing the issue as an argument.
   # Also pass the GitHub App credentials to the job, so it can generate it's own token if needed.
-  job="$(sbatch \
+  JOBID="$(sbatch \
     --parsable \
     --export="${GH_EXPORT_LIST}" \
     --chdir ./example_workflow \
     ./example_workflow/example_workflow.sh "$ISSUE" \
   )"
 
-  jobstr="Submitted workflow job: $job"
-  gh issue comment "$NUMBER" --body "$jobstr" > /dev/null
-  echo "$jobstr"
+  JOBSTR="\`workflow $JOBID SUBMITTED\`"
+  gh issue comment "$NUMBER" --body "$JOBSTR" > /dev/null
+  echo "$JOBSTR"
 fi
 echo "+++++++++++++++ Stopping daemon job $SLURM_JOB_ID [$(date "+%Y-%b-%d %H:%M:%S")] +++++++++++++++"
