@@ -40,7 +40,7 @@ EOF
 )"
 
 # Construct the footer
-if [[ "$FAILED" == "yes" ]]; then
+if [[ "$STATE" == "FAILED" ]]; then
   FOOTER="Please check the Slurm job logs for details."
 else
   FOOTER="$(cat << EOF
