@@ -6,7 +6,7 @@ A pattern for using GitHub Issues as a persistent, human-readable job queue that
 
 This project implements a job queue where:
 - GitHub Actions creates issues to represent work items
-- A Slurm daemon polls the queue and processes items
+- A Slurm job polls the queue and processes items
 - Results are tracked through issue labels and comments
 
 ## Key Design Decisions
@@ -14,7 +14,7 @@ This project implements a job queue where:
 - **Issues as queue items**: Human-readable, easy to inspect/debug
 - **State tracking**: Labels: `unclaimed` and `failed`. Claimed issues have the label removed, and completed issues are closed.
 - **Self-chaining polls**: Each poll job schedules the next via `--dependency=afterok`
-- **No SSH credentials needed**: Polling via GitHub API avoids putting SSH keys on the cluster or managing SSH config — the daemon just needs API access
+- **No SSH credentials needed**: Polling via GitHub API avoids putting SSH keys on the cluster or managing SSH config — the broker just needs API access
 - **Effective cron replacement**: Many compute clusters don't have cron enabled; the poll loop gives you scheduled work without relying on cron
 - **Separate queue repo**: Keeps main project issues clean (recommended)
 
@@ -28,7 +28,7 @@ Creates a milestone and one issue per cluster when triggered. Each issue contain
 - Work parameters in the issue body
 - Link to the workflow run
 
-### 2. Poller Daemon (`gh-iqpd_template.sh`)
+### 2. Broker (`gh2slurm`)
 
 A Slurm job that:
 - Polls GitHub API for unclaimed issues matching its cluster label
@@ -87,11 +87,11 @@ https://github.com/settings/installations/INSTALLATION_ID
 
 ### 4. Configure Environment
 
-Set these variables in your daemon script or environment:
+Set these variables in your broker script or environment:
 - `GH_APP_ID` — your app ID
 - `GH_APP_INSTALL_ID` — the installation ID
 - `GH_APP_KEY` — path to the private key `.pem` file
-- `GH_REPO` — owner/repo format (e.g. `myorg/slurm-queue`)
+- `GH_REPO` — owner/repo format (e.g. `myorg/repo-with-issue-queue`)
 
 ## Setup
 
@@ -105,13 +105,13 @@ Install CLI tools:
 
 ### Deployment
 
-1. Edit `gh-iqpd_template.sh` with your cluster name and queue label
-2. Submit the poller: `sbatch gh-iqpd_template.sh`
+1. Edit `gh2slurm` with your cluster name and queue label
+2. Submit the poller: `sbatch gh2slurm`
 3. Trigger work via GitHub Actions workflow
 
 ## Files
 
 - `queue.yml` - GitHub Actions workflow
-- `gh-iqpd_template.sh` - Poller daemon template
+- `gh2slurm` - broker template
 - `example_work.sh` - Sample work script
 - `bin/` - CLI tools (gh, gh-token)

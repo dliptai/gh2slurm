@@ -1,14 +1,14 @@
 #!/bin/bash
-#SBATCH --job-name=gh-iqpd
+#SBATCH --job-name=gh2slurm
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --time=00:01:00
 #SBATCH --open-mode=append
-#SBATCH --output=gh-iqpd.log
+#SBATCH --output=broker.log
 set -euo pipefail
 
 #------------------------------------------------------------------------------------------------------
-# GitHub Issue Queue Poller Daemon (gh-iqpd) for SLURM
+# GitHub to Slurm Broker (gh2slurm)
 #------------------------------------------------------------------------------------------------------
 
 # Configuration
@@ -95,7 +95,7 @@ gh_setup && export -f gh_setup
 # afterok means the next job queues up only after this one exits cleanly.
 # Capturing the new job ID isn't needed; the chain is self-sustaining.
 echo
-echo "+++++++++++++++ Starting daemon job $SLURM_JOB_ID [$(date "+%Y-%b-%d %H:%M:%S")] +++++++++++++++"
+echo "+++++++++++++++ Starting broker job $SLURM_JOB_ID [$(date "+%Y-%b-%d %H:%M:%S")] +++++++++++++++"
 echo "Submitting next poller job to run in: ${RESUBMIT_FREQ}"
 sbatch "--dependency=afterok:${SLURM_JOB_ID}" "--begin=now+${RESUBMIT_FREQ}" "${BASH_SOURCE[0]}"
 echo "Searching for work"
@@ -123,4 +123,4 @@ else
   gh issue comment "$NUMBER" --body "$JOBSTR" > /dev/null
   echo "$JOBSTR"
 fi
-echo "+++++++++++++++ Stopping daemon job $SLURM_JOB_ID [$(date "+%Y-%b-%d %H:%M:%S")] +++++++++++++++"
+echo "+++++++++++++++ Stopping broker job $SLURM_JOB_ID [$(date "+%Y-%b-%d %H:%M:%S")] +++++++++++++++"
