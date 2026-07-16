@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       clusters:
-        description: 'JSON array of cluster names (e.g. ["ozstar", "another-cluster"] )'
+        description: 'JSON array of cluster names (e.g. ["ozstar", "cluster2"] )'
         required: true
-        default: '["ozstar", "another-cluster"]'
+        default: '["ozstar", "cluster2"]'
       param1:
         description: "First parameter"
         required: true
