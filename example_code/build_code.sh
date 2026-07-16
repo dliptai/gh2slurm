@@ -12,5 +12,4 @@ set -euo pipefail
 #--------------------------------------
 
 echo "Building code..."
-set -x
-gcc -o helloworld helloworld.c
+make
