@@ -13,4 +13,4 @@ set -euo pipefail
 
 echo "Running benchmark code..."
 set -x
-time ./helloworld |& tee timings.txt
+time ./src/helloworld |& tee timings.txt

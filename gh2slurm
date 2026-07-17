@@ -12,6 +12,8 @@ set -euo pipefail
 #------------------------------------------------------------------------------------------------------
 
 # Configuration
+WORKFLOW_RUNDIR="$PWD/example/workflow/runs"
+WORKFLOW_SCRIPT="$PWD/example/workflow/workflow-manager.sh"
 RESUBMIT_FREQ=1week
 CLUSTER_LABEL="<<CLUSTER_NAME>>"
 QUEUE_LABEL="<<QUEUE_LABEL>>"
@@ -115,8 +117,8 @@ else
   JOBID="$(sbatch \
     --parsable \
     --export="${GH_EXPORT_LIST}" \
-    --chdir ./example_workflow \
-    ./example_workflow/example_workflow.sh "$ISSUE" \
+    --chdir "$WORKFLOW_RUNDIR" \
+    "$WORKFLOW_SCRIPT" "$ISSUE" \
   )"
 
   JOBSTR="\`workflow $JOBID SUBMITTED\`"

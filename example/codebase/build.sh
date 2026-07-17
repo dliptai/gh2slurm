@@ -12,4 +12,5 @@ set -euo pipefail
 #--------------------------------------
 
 echo "Building code..."
+cd src
 make

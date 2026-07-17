@@ -1,9 +1,9 @@
 #!/bin/bash
-#SBATCH --job-name=workflow
+#SBATCH --job-name=workflow-manager
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --time=00:01:00
-#SBATCH --output="workflow-%j.out"
+#SBATCH --output="workflow-manager-%j.out"
 set -euo pipefail
 
 #------------------------------------------------------------------------------
@@ -31,7 +31,7 @@ partition_internet="$SLURM_JOB_PARTITION"    # Replace with a partition that has
 handle_error() {
   # Publish error message to GitHub issue and mark it as failed
   echo "ERROR: script failed." >&2
-  gh issue comment "$ISSUE_NUMBER" --body "Slurm job $SLURM_JOB_ID failed" >&2
+  gh issue comment "$ISSUE_NUMBER" --body "\`$SLURM_JOB_ID failed\`" >&2
   gh issue edit "$ISSUE_NUMBER" --remove-label "running" --add-label "failed" >&2
   exit 1
 }
@@ -45,36 +45,30 @@ commit_hash="$(echo "$ISSUE" | jq -r '.body' | jq -r '.commit')"
 # Use run number as unique ID
 run_number="$(echo "$ISSUE" | jq -r '.body' | jq -r '.run_number')"
 
-# Name of the cluster we're running on.
-cluster_label="cluster"
-
-# Set up the job run directory, where the code will be downloaded and run.
-job_run_dir="$PWD/runs/${run_number}_${cluster_label}"
+# Create a job run directory based off the unique run_number, and change into it
+job_run_dir="run${run_number}"
 mkdir -vp "$job_run_dir"
 cd "$job_run_dir"
 
-# Download the code you want to be working with.
-# This can be replaced by e.g. a git clone command, or a wget/curl command to download a tarball, etc.
-# In our case, the example code lives in the same repo, but we're showing the download as a separate step to illustrate the workflow.
+# Download the code and benchmarking scripts.
+# This can be replaced by e.g. a git clone command.
+# (In our case, the example code happens to live in the same repo)
 url="https://github.com/${GH_REPO}/archive/${commit_hash}.tar.gz"
 echo "Downloading code from $url"
-curl -sSL "$url" | tar xz --strip-components=1 "*/example_code"
-cd example_code
-
-# Run the example workflow, which consists of three jobs:
+curl -sSL "$url" | tar xz --strip-components=3 "*/example/codebase"
 
 # Submit build job
-JOB1="$(sbatch --parsable --partition="$partition_compute" build_code.sh)"
+JOB1="$(sbatch --parsable --partition="$partition_compute" build.sh)"
 
 # Submit a second job to run the benchmarks, which depends on the first job's success
-JOB2="$(sbatch --parsable --partition="$partition_compute" --dependency="afterok:$JOB1" benchmark_code.sh)"
+JOB2="$(sbatch --parsable --partition="$partition_compute" --dependency="afterok:$JOB1" benchmark.sh)"
 
 # Submit the final job, which runs regardless of success or failure
 JOB3="$(sbatch --parsable \
               --export="${GH_EXPORT_LIST}" \
               --partition="$partition_internet" \
               --dependency="afterany:$JOB1:$JOB2" \
-              publish_results.sh "$ISSUE")"
+              publish.sh "$ISSUE")"
 
 # Publish the job IDs to the GitHub issue
 JOBSTR="$(cat <<EOF
