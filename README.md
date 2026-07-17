@@ -36,7 +36,17 @@ Supply chain risk is low because you're not pulling arbitrary action code into y
 ## Key Design Decisions
 
 - **Issues as queue items**: Human-readable, easy to inspect/debug
-- **State tracking**: Labels: `running` and `failed`. Claimed issues get the `running` label; completed issues are closed; failed issues get the `failed` label. An unclaimed issue has neither label.
+- **State tracking**: Tracked via labels on the issue:
+
+  | State | Label |
+  |---|---|
+  | Unclaimed | *(none)* |
+  | Claimed / in progress | `running` |
+  | Succeeded | *(none — issue is closed)* |
+  | Failed | `failed` |
+
+In addition, issues always have a label that identifies them as belonging to the "queue", and a label that for which cluster they should be run on.
+
 - **Self-chaining polls**: Each poll job schedules the next via `--dependency=afterok`
 - **No SSH credentials needed**: Polling via GitHub App token avoids putting SSH keys on the cluster or managing SSH config — the broker just needs API access
 - **Effective cron replacement**: Many compute clusters don't have cron enabled; the poll loop gives you scheduled work without relying on cron
@@ -51,12 +61,12 @@ Supply chain risk is low because you're not pulling arbitrary action code into y
 2. Click **New GitHub App**. Fill in:
    - **Name**: e.g. `gh2slurm`
    - **Homepage URL**: can be anything (often the repo URL)
-   - **Webhook URL**: leave blank — the broker polls; it doesn't need webhooks
+   - **Webhook URL**: leave blank. The broker polls; it doesn't listen for webhook deliveries, and with no URL configured GitHub won't attempt any.
 3. Under **Permissions**, grant:
    - **Issues** → Read and write
-4. Under **Subscribe to events**, check **Issues** (optional — useful if you later add webhook-driven behaviour).
+4. Under **Subscribe to events**, you can leave everything unchecked — with no Webhook URL set, there's nothing for GitHub to deliver events to. Only revisit this if you later add webhook-driven behaviour and a URL to receive it.
 5. Click **Create App**. Note the **App ID**.
-6. Under **Private keys**, click **Generate a private key**. Save the `.pem` file somewhere accessible from the cluster.
+6. Under **Private keys**, click **Generate a private key**. Save the `.pem` file somewhere accessible from the cluster — treat it like any other credential: `chmod 600`, keep it out of the queue repo and out of version control entirely, and don't put it anywhere world-readable on shared filesystems.
 
 ### 2. Install the App on the queue repo
 
@@ -73,13 +83,15 @@ Supply chain risk is low because you're not pulling arbitrary action code into y
 
 Both scripts download the latest release and place binaries in `./bin`, which is also the default `$GH_CLI_BIN`.
 
+[`gh-token`](https://github.com/Link-/gh-token) mints short-lived GitHub App installation tokens from your `.pem` key. It's needed because installation tokens expire after about an hour — the broker and any long-running child jobs each generate their own token via `gh_setup` rather than trying to share one that might expire mid-job. If you'd rather not manage an extra binary, `bin/gh-token-bash` (bundled here) does the same JWT-generation-and-exchange using only `openssl`.
+
 ### 4. Configure the broker
 
 Edit `gh2slurm` and set:
 
 | Variable | Meaning |
 |---|---|
-| `RESUBMIT_FREQ` | How often to re-poll when the queue is empty (Slurm `--begin` offset, e.g. `1week`, `1minute`) |
+| `RESUBMIT_FREQ` | How often to run the broker (Slurm `--begin` offset, e.g. `1week`, `1minute`). Keep this reasonably conservative: GitHub App installation tokens are rate-limited (~5000 requests/hour), so a very tight interval across many queue repos or clusters can burn through that budget. |
 | `CLUSTER_LABEL` | Label on issues this broker should claim (e.g. `ozstar`) |
 | `QUEUE_LABEL` | Label that identifies queue items (default: `job-queue`) |
 | `GH_APP_ID` | App ID from step 1 |
@@ -90,7 +102,7 @@ Edit `gh2slurm` and set:
 
 ### 5. Point the broker at your workflow
 
-By default the broker submits `./example_workflow/example_workflow.sh`. Replace it with your own workflow script:
+By default the broker submits `./example_workflow/example_workflow.sh`. Replace it with your own workflow script — near the bottom of `gh2slurm`, in the block that submits the manager job:
 
 ```bash
 # In gh2slurm, change:
@@ -119,7 +131,15 @@ In a real setup, you'll typically have two repos:
 | **Queue repo** | Holds issues and is polled by the broker |
 | **Code repo**  | Holds the code you want to benchmark |
 
-In the code repo, a workflow — often on a `schedule` cron trigger — creates issues **in the queue repo** (via the GitHub API, authenticated with a GitHub App installation token). Each issue body is JSON with three fields: `commit`, `run_number`, and `param1`.
+In the code repo, a workflow — often on a `schedule` cron trigger — creates issues **in the queue repo** (via the GitHub API, authenticated with a GitHub App installation token). Each issue body is JSON. For example:
+
+```json
+{
+  "commit": "a1b2c3d",
+  "run_number": 42,
+  "param1": "value"
+}
+```
 
 > **Note**: If you're creating issues from a workflow in a *different* repo, use the [`actions/create-github-app-token`](https://github.com/actions/create-github-app-token) action to generate an installation token. This is cleaner than manually generating the JWT + exchanging it yourself — the action handles both steps and returns the token as an output you can pass to `gh` or `curl`.
 
@@ -137,7 +157,7 @@ Uses `--dependency=afterok` to chain poll jobs, creating a self-sustaining loop.
 
 The broker relies on:
 - `gh_setup` function: validates environment, generates a GitHub App JWT, exchanges it for an installation access token via the `gh-token` (or `gh-token-bash` fallback) CLI
-- `GH_EXPORT_LIST`: a comma-separated list of env vars that gets forwarded to child Slurm jobs so they can generate their own tokens
+- `GH_EXPORT_LIST`: a comma-separated list of env vars that gets forwarded to child Slurm jobs so they can generate their own tokens — necessary because installation tokens expire (~1hr) and a child job may easily outlive the token the broker started with
 
 ### 3. Workflow (`example_workflow/example_workflow.sh`)
 
