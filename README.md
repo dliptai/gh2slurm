@@ -4,12 +4,34 @@
 
 A pattern for using GitHub Issues as a persistent, human-readable job queue that triggers work on a Slurm cluster from GitHub Actions.
 
+> This repo is a **template** — not a ready-to-run codebase. Fork it, adapt the Slurm scripts to your workflow, point the broker at your queue repo, and submit. Everything here is illustrative; swap each piece for your own.
+
 ## Overview
 
 This project implements a job queue where:
 - GitHub Actions creates issues to represent work items
 - A Slurm broker polls the queue and processes items
 - Results are tracked through issue labels and comments
+
+## Who is this for?
+
+**HPC users**, not cluster admins. You don't need admin privileges to set this up — just a GitHub account and access to a Slurm cluster. All jobs run as your user account.
+
+If you can submit Slurm jobs from the command line, you can use this.
+
+## What it's not
+
+This is **not** a "run generic GitHub Actions on Slurm" system, such as [gha-slurm](https://github.com/ripley-cloud/gha-slurm) or [slurm-gha](https://github.com/WATonomous/slurm-gha). In those projects, you upload a full `.github/workflows/*.yml` and the Slurm cluster executes every step inside containers — the cluster becomes an Action runner.
+
+Here, the workflow already lives **on the cluster** as regular Slurm scripts. The GitHub issue is just a lightweight trigger with minimal input — typically a commit hash and a few parameters. The actual workflow (build → benchmark → publish) can be hidden away on the cluster; you never see the individual Slurm scripts from GitHub unless you want to.
+
+In short: GitHub issues don't *contain* the work, they *describe what work to run*.
+
+### Security note
+
+This design keeps the trust boundary small. Instead of running every step of a workflow on your cluster — third-party actions, arbitrary commands, unknown dependencies — you only run the few Slurm scripts you already wrote and control.
+
+Supply chain risk is low because you're not pulling arbitrary action code into your cluster. You're passing a small JSON payload to scripts that already exist there. The trade-off is that you're trusting the issue body: if anyone can create issues in the queue repo, they could inject arbitrary parameters, so limit who can create issues via repo-level access control. But it's a simpler trust model than having arbitrary workflow steps run on your cluster.
 
 ## Key Design Decisions
 
@@ -19,6 +41,7 @@ This project implements a job queue where:
 - **No SSH credentials needed**: Polling via GitHub App token avoids putting SSH keys on the cluster or managing SSH config — the broker just needs API access
 - **Effective cron replacement**: Many compute clusters don't have cron enabled; the poll loop gives you scheduled work without relying on cron
 - **Separate queue repo**: Keeps main project issues clean (recommended)
+- **User-level operation**: Jobs run as your Slurm user — no sudo, no shared filesystem dependencies beyond your home directory
 
 ## Setup
 
@@ -93,8 +116,8 @@ In a real setup, you'll typically have two repos:
 
 | Repo | Purpose |
 |---|---|
-| **Queue repo** (this one) | Holds issues; broker polls here |
-| **Code repo** (your project) | Holds the code you want to benchmark |
+| **Queue repo** | Holds issues and is polled by the broker |
+| **Code repo**  | Holds the code you want to benchmark |
 
 In the code repo, a workflow — often on a `schedule` cron trigger — creates issues **in the queue repo** (via the GitHub API, authenticated with a GitHub App installation token). Each issue body is JSON with three fields: `commit`, `run_number`, and `param1`.
 
@@ -116,12 +139,12 @@ The broker relies on:
 - `gh_setup` function: validates environment, generates a GitHub App JWT, exchanges it for an installation access token via the `gh-token` (or `gh-token-bash` fallback) CLI
 - `GH_EXPORT_LIST`: a comma-separated list of env vars that gets forwarded to child Slurm jobs so they can generate their own tokens
 
-### 3. Example Workflow (`example_workflow/example_workflow.sh`)
+### 3. Workflow (`example_workflow/example_workflow.sh`)
 
 Submits a chain of three dependent Slurm jobs:
 
 1. **`build_code.sh`** — compiles `helloworld.c` via Make
-2. **`benchmark_code.sh`** — runs the binary with `time`, saves output to `timings.txt` (depends on build via `afterok`)
+2. **`benchmark_code.sh`** — runs the binary, times it, saves output to `timings.txt` (depends on build via `afterok`)
 3. **`publish_results.sh`** — gathers job states via `sacct`, posts timing/results back to the issue, and either closes the issue or marks it `failed` (depends on both via `afterany`)
 
 ### 4. Supporting files
