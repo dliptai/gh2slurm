@@ -82,7 +82,7 @@ gh_get_issue() {
     --state open \
     --limit 1 \
     --search "sort:created-asc author:$author -label:running -label:failed" \
-    --json number,title,body,milestone \
+    --json number,title,body \
     --jq '.[0] // empty'
 }
 
