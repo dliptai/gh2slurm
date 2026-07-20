@@ -17,6 +17,7 @@ WORKFLOW_SCRIPT="$PWD/example/workflow/workflow-manager.sh"
 RESUBMIT_FREQ=1week
 CLUSTER_LABEL="<<CLUSTER_NAME>>"
 QUEUE_LABEL="<<QUEUE_LABEL>>"
+ISSUE_AUTHOR=app/github-actions
 export GH_APP_ID="<<GH_APP_ID>>"
 export GH_APP_INSTALL_ID="<<GH_APP_INSTALL_ID>>"
 export GH_APP_KEY="<</path/to/GH_APP_KEY>>"
@@ -72,14 +73,15 @@ gh_setup() {
 # Helpful functions
 #------------------------------------------------------------------------------------------------------
 gh_get_issue() {
-  local queue_label="${1:?Usage: gh_get_issue <queue-label> <cluster-name>}"
-  local cluster_name="${2:?Usage: gh_get_issue <queue-label> <cluster-name>}"
+  local queue_label="${1:?Usage: gh_get_issue <queue-label> <cluster-name> <author>}"
+  local cluster_name="${2:?Usage: gh_get_issue <queue-label> <cluster-name> <author>}"
+  local author="${3:?Usage: gh_get_issue <queue-label> <cluster-name> <author>}"
   gh issue list \
     --label "$queue_label" \
     --label "$cluster_name" \
     --state open \
     --limit 1 \
-    --search "sort:created-asc author:app/github-actions -label:running -label:failed" \
+    --search "sort:created-asc author:$author -label:running -label:failed" \
     --json number,title,body,milestone \
     --jq '.[0] // empty'
 }
@@ -101,7 +103,7 @@ echo "+++++++++++++++ Starting broker job $SLURM_JOB_ID [$(date "+%Y-%b-%d %H:%M
 echo "Submitting next poller job to run in: ${RESUBMIT_FREQ}"
 sbatch "--dependency=afterok:${SLURM_JOB_ID}" "--begin=now+${RESUBMIT_FREQ}" "${BASH_SOURCE[0]}"
 echo "Searching for work"
-ISSUE="$(gh_get_issue "$QUEUE_LABEL" "$CLUSTER_LABEL")"
+ISSUE="$(gh_get_issue "$QUEUE_LABEL" "$CLUSTER_LABEL" "$ISSUE_AUTHOR")"
 
 if [[ -z "$ISSUE" ]]; then
   echo "No work found"
