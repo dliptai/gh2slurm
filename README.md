@@ -36,15 +36,16 @@ Just take care in how the JSON payload is processed, and limit who can create is
 - **Issues as queue items**: Human-readable, easy to inspect
 - **State tracking**: Tracked via labels on the issue:
 
-  | State | Label |
-  |---|---|
-  | Unclaimed | *(none)* |
-  | Claimed / in progress | `running` |
-  | Succeeded | *(none — issue is closed)* |
-  | Failed | `failed` |
+    | State                 | Label                      |
+    | ---------------------- | --------------------------- |
+    | Unclaimed              | *(none)*                   |
+    | Claimed / in progress  | `running`                  |
+    | Succeeded              | *(none — issue is closed)* |
+    | Failed                 | `failed`                   |
 
 (These are in addition to a label identifying them as belonging to the "queue", as well as a label indicating the target cluster).
 
+- **Separate queue repo (recommended)**: Keeps your main project's issue tracker clean, and keeps the access-control boundary for "who can trigger cluster jobs" separate from your code repo's normal contributor access. Not required — issues can be created in the same repo — but a dedicated queue repo makes it easier to lock down who can create issues.
 - **Self-chaining polls**: Each polling job schedules the next via `--dependency=afterok`. This replaces what would otherwise be a long-running daemon on the head node — many clusters don't reliably support those, since login nodes often get rebooted for maintenance and long-running processes are cleaned up automatically. A chained Slurm job survives reboots naturally because each link is a proper Slurm job, not a background process.
 - **Effective cron replacement**: Many compute clusters don't have cron enabled; the poll loop gives you scheduled work without relying on cron
 - **No SSH credentials needed**: The queue is polled from inside the cluster using a GitHub App, rather than connecting into the cluster from outside — no need to upload user SSH keys to GitHub Actions secrets, or create a restricted SSH key for external access
@@ -62,7 +63,7 @@ Just take care in how the JSON payload is processed, and limit who can create is
    - **Webhook**: uncheck "Active". The broker polls; it doesn't listen for webhook deliveries, and with no URL configured GitHub won't attempt any.
 3. Under **Repository Permissions**, grant:
    - **Issues** → Read and write
-4. Click **Create App**. Note the **App ID** (or **Client ID**).
+4. Click **Create App**. Note the **App ID**.
 5. Under **Private keys**, click **Generate a private key**. Save the `.pem` file somewhere accessible from the cluster — treat it like any other credential: `chmod 600`, keep it out of the queue repo and out of version control entirely, and don't put it anywhere world-readable on shared filesystems.
 
 ### 2. Install the App on the queue repo
@@ -88,14 +89,14 @@ Edit `gh2slurm` and set:
 
 | Variable | Meaning |
 |---|---|
-| `RESUBMIT_FREQ` | How often to run the broker, e.g. `1week`, `1minute`; used directly by `sbatch --begin`. Keep this reasonably conservative: GitHub App installation tokens are rate-limited (~5000 requests/hour), so a very tight interval across many queue repos or clusters can burn through that budget. |
-| `CLUSTER_LABEL` | Label on issues this broker should claim (e.g. `ozstar`) |
-| `QUEUE_LABEL` | Label that identifies queue items (default: `job-queue`) |
-| `GH_APP_ID` | App ID from step 1 |
+| `RESUBMIT_FREQ` | How often to run the broker, e.g. `1week`, `1minute`; used directly by `sbatch --begin` to delay the start of the next poll job. Keep this reasonably conservative: GitHub App installation tokens are rate-limited (~5000 requests/hour), so a very tight interval across many queue repos or clusters can burn through that budget. |
+| `CLUSTER_LABEL`     | Label on issues this broker should claim (e.g. `ozstar`) |
+| `QUEUE_LABEL`       | Label that identifies queue items (default: `job-queue`) |
+| `GH_APP_ID`         | App ID from step 1 |
 | `GH_APP_INSTALL_ID` | Installation ID from step 2 |
-| `GH_APP_KEY` | Path to the private key `.pem` file |
-| `GH_REPO` | Queue repo descriptor in the format `owner/repo` |
-| `GH_CLI_BIN` | Directory containing `gh` and `gh-token` (default: `$PWD/bin`) |
+| `GH_APP_KEY`        | Path to the private key `.pem` file |
+| `GH_REPO`           | Queue repo descriptor in the format `owner/repo` |
+| `GH_CLI_BIN`        | Directory containing `gh` and `gh-token` (default: `$PWD/bin`) |
 
 ### 5. Point the broker at your workflow
 
@@ -125,10 +126,10 @@ This file is a **working example** of how to create queue items from a GitHub Ac
 
 In a real setup, you'll typically have two repos:
 
-| Repo | Purpose |
-|---|---|
+| Repo           | Purpose                                  |
+| -------------- | ----------------------------------------- |
 | **Queue repo** | Holds issues and is polled by the broker |
-| **Code repo**  | Holds the code you want to benchmark |
+| **Code repo**  | Holds the code you want to benchmark     |
 
 In the code repo, a workflow — often on a `schedule` cron trigger — creates issues **in the queue repo** (via the GitHub API, authenticated with a GitHub App installation token). Each issue body is JSON. For example:
 
@@ -145,26 +146,32 @@ In the code repo, a workflow — often on a `schedule` cron trigger — creates 
 ### 2. Broker (`gh2slurm`)
 
 A Slurm job that:
+
 - Polls the GitHub API for unclaimed issues matching its cluster label
 - Claims issues by adding the `running` label
-- Submits work to the cluster
+- Submits workflow to the cluster
 - Updates issue status
 
 Uses `--dependency=afterok` to chain poll jobs, creating a self-sustaining loop.
 
 The broker relies on:
+
 - `gh_setup` function: validates environment, generates a GitHub App JWT, exchanges it for an installation access token via the `gh-token` CLI
 - `GH_EXPORT_LIST`: a comma-separated list of env vars, and the `gh_setup` function itself, that get forwarded to child Slurm jobs so they can generate their own tokens — necessary because installation tokens expire (~1hr) and a child job may easily outlive the token the broker started with
 
 ### 3. Workflow (`example/workflow/workflow-manager.sh`)
 
-Submits a chain of e.g. three dependent Slurm jobs:
+In our example, the workflow:
+- takes the issue as input
+- creates a unique run directory
+- downloads the example code at a specific commit, as specified in the issue body (JSON payload)
+- and submits a chain of three dependent Slurm jobs:
 
 1. **`build.sh`** — compiles `src/helloworld.c` via Make
-2. **`benchmark.sh`** — runs the binary, times it, saves output to `timings.txt` (depends on build via `afterok`)
-3. **`publish.sh`** — gathers job states via `sacct`, posts timing/results back to the issue, and either closes the issue or marks it `failed` (depends on both via `afterany`)
+2. **`benchmark.sh`** — runs the binary, times it, saves output to `timings.txt` (runs after build job succeeds)
+3. **`publish.sh`** — gathers job states via `sacct`, posts timing/results back to the issue, and either closes the issue or marks it `failed` (runs unconditionally after both previous jobs finish)
 
-The workflow manager runs in its own Slurm job, creates a run directory (`run${run_number}`), downloads the code from the repo, then submits the three work jobs.
+Dependencies between jobs are specified using `sbatch --dependency` flags.
 
 ### 4. Supporting files
 
@@ -194,15 +201,12 @@ workflow-manager.sh — manager
      ▼                      ▼                       ▼
   [slurm job]           [slurm job]           posts timing to the issue,
                                                closes or marks failed
-
 ```
 
 Key points:
+
 - The **broker** (`gh2slurm`) is short-lived — it only claims an issue and submits the manager workflow, then exits. It doesn't do any actual work.
-- The broker **resubmits itself** via `--dependency=afterok` — so the next poll is queued immediately, before the manager job even starts.
-- The **manager** (`workflow-manager.sh`) runs in its own Slurm job and handles:
-  - Setting up the run directory
-  - Downloading the code at the commit hash from the issue
-  - Submitting the 3 dependent work jobs
+- The broker **resubmits itself first** via `--dependency=afterok`, before it even looks for work — so the next poll is queued immediately, ensuring the queue keeps moving even if the manager or work jobs fail downstream.
+- The **manager** (`workflow-manager.sh`) runs in its own Slurm job and handles the run-directory setup, code download, and submission of the three work jobs (see Components above).
 - Only `publish.sh` talks back to GitHub — it comments timing on the issue and either closes it or adds a `failed` label.
 - If any work job fails, `publish.sh` still runs (because of `afterany`) and reports the failure instead of silently succeeding.
