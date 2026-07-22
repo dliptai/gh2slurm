@@ -75,11 +75,12 @@ Just take care in how the JSON payload is processed, and limit who can create is
 ### 3. Install CLI tools on the cluster
 
 ```bash
-./install-gh-cli_linux_amd64     # puts `gh` in ./bin
-./install-gh-token_linux_amd64   # puts `gh-token` in ./bin
+./bin/install_github_cli_tools_linux_amd64               # install both (default)
+./bin/install_github_cli_tools_linux_amd64 --gh-cli-only # install only gh CLI
+./bin/install_github_cli_tools_linux_amd64 --token-only  # install only gh-token
 ```
 
-Both scripts download the latest release and place binaries in `./bin`, which is also the default `$GH_CLI_BIN`. Alternatively, if you already have the CLI tools installed, just ensure they're accessible by setting the correct `$GH_CLI_BIN` in the next step.
+Single installer with optional flags to pick which tool(s) to install. Both binaries land in `./bin`, which is also the default `$GH_CLI_BIN`. Alternatively, if you already have the CLI tools installed, just ensure they're accessible by setting the correct `$GH_CLI_BIN`.
 
 [`gh-token`](https://github.com/Link-/gh-token) mints short-lived GitHub App installation tokens from your `.pem` key. It's needed because installation tokens expire after about an hour — the broker and any long-running child jobs can generate their own token via `gh_setup` rather than trying to share one that might expire mid-job. If you'd rather not manage an extra binary, `bin/gh-token-bash` (bundled here) does the same JWT-generation-and-exchange using only `openssl`.
 

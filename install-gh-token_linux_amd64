@@ -1,8 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-
-mkdir -p ./bin
-curl -fsSL -o ./bin/gh-token https://github.com/Link-/gh-token/releases/latest/download/linux-amd64
-chmod +x ./bin/gh-token
-set -x
-./bin/gh-token --version

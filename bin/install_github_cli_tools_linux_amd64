@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Usage:
+#   ./install_github_cli_tools_linux_amd64              # Install both gh CLI and gh-token
+#   ./install_github_cli_tools_linux_amd64 --gh-cli-only # Install only gh CLI
+#   ./install_github_cli_tools_linux_amd64 --token-only  # Install only gh-token
+
+# This script lives in bin/ alongside the tools it installs.
+BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+GH_CLI_ONLY=false
+TOKEN_ONLY=false
+
+for arg in "$@"; do
+  case "$arg" in
+    --gh-cli-only) GH_CLI_ONLY=true ;;
+    --token-only)  TOKEN_ONLY=true ;;
+    -h|--help)
+      echo "Usage: $0 [--gh-cli-only|--token-only]"
+      echo "  --gh-cli-only  Install only the gh CLI"
+      echo "  --token-only   Install only gh-token"
+      echo "  (default)      Install both"
+      exit 0
+      ;;
+  esac
+done
+
+# --- gh CLI ---
+if ! $TOKEN_ONLY; then
+  echo "--> Downloading GitHub CLI tool"
+  version="$(curl -fsSL https://api.github.com/repos/cli/cli/releases/latest | jq -r .tag_name)"
+  curl --progress-bar -fSL "https://github.com/cli/cli/releases/download/${version}/gh_${version#v}_linux_amd64.tar.gz" \
+    | tar -xz --strip-components=2 -C "$BIN_DIR" '*/bin/gh'
+  ls "$BIN_DIR/gh"
+fi
+
+# --- gh-token ---
+if ! $GH_CLI_ONLY; then
+  echo "--> Downloading GitHub token generator CLI tool"
+  curl --progress-bar -fSL -o "$BIN_DIR/gh-token" https://github.com/Link-/gh-token/releases/latest/download/linux-amd64
+  chmod +x "$BIN_DIR/gh-token"
+  ls "$BIN_DIR/gh-token"
+fi
