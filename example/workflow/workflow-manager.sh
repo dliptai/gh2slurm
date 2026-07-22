@@ -41,21 +41,40 @@ trap handle_error ERR
 
 # Get the commit hash we want to work with from the issue body.
 commit_hash="$(echo "$ISSUE" | jq -r '.body' | jq -r '.commit')"
+if ! [[ "$commit_hash" =~ ^[0-9a-fA-F]{7,40}$ ]]; then
+  echo "ERROR: 'commit' must be a 7-40 char hex git SHA, got: $commit_hash" >&2
+  exit 1
+fi
 
-# Use run number as unique ID
+# Get the run number from the issue body.
 run_number="$(echo "$ISSUE" | jq -r '.body' | jq -r '.run_number')"
+if ! [[ "$run_number" =~ ^[0-9]+$ ]]; then
+  echo "ERROR: 'run_number' must be a positive integer, got: $run_number" >&2
+  exit 1
+fi
 
-# Create a job run directory based off the unique run_number, and change into it
+# Create a job run directory based off the unique run_number, and change into it.
 job_run_dir="run${run_number}"
 mkdir -vp "$job_run_dir"
 cd "$job_run_dir"
 
-# Download the code and benchmarking scripts.
+# Download the code and benchmarking scripts to a temp file first, so we can
+# check it for path-traversal / symlink entries before extracting anywhere.
 # This can be replaced by e.g. a git clone command.
 # (In our case, the example code happens to live in the same repo)
 url="https://github.com/${GH_REPO}/archive/${commit_hash}.tar.gz"
 echo "Downloading code from $url"
-curl -sSL "$url" | tar xz --strip-components=3 "*/example/codebase"
+
+tmp_archive="$(mktemp)"
+trap 'rm -f "$tmp_archive"' RETURN
+curl -sSL "$url" -o "$tmp_archive"
+
+if tar tzf "$tmp_archive" | grep -qE '(^|/)\.\.(/|$)|^/'; then
+  echo "ERROR: archive contains path-traversal or absolute-path entries, refusing to extract" >&2
+  exit 1
+fi
+
+tar xzf "$tmp_archive" --strip-components=3 "*/example/codebase"
 
 # Submit build job
 JOB1="$(sbatch --parsable --partition="$partition_compute" build.sh)"
