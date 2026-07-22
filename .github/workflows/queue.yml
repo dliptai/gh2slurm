@@ -31,20 +31,22 @@ jobs:
       - name: Create milestone
         id: milestone
         env:
+          # Untrusted input — kept as a shell variable, never spliced into
+          # the run: script text via ${{ }}.
+          PARAM1: ${{ github.event.inputs.param1 }}
           description: |
             **Workflow:** [${{ github.run_number }}](${{ env.RUN_URL }})
             **Commit:** [${{ github.sha }}](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
             **Params:** \`${{ github.event.inputs.param1 }}\`
         run: |
-          MILESTONE=$(gh api repos/${{ github.repository }}/milestones \
+          MILESTONE_JSON=$(gh api "repos/${GH_REPO}/milestones" \
             --method POST \
-            --field title="${{ env.MILESTONE }}" \
-            --field description="${{ env.description }}" )
+            --field title="$MILESTONE" \
+            --field description="$description")
 
-          echo $MILESTONE | jq -r '.html_url'
-
+          echo "$MILESTONE_JSON" | jq -r '.html_url'
           # Set the milestone number as an output for use in subsequent jobs
-          echo milestone_number=$(echo $MILESTONE | jq -r '.number') >> $GITHUB_OUTPUT
+          echo "milestone_number=$(echo "$MILESTONE_JSON" | jq -r '.number')" >> "$GITHUB_OUTPUT"
 
   create-issues:
     needs: create-milestone
@@ -55,15 +57,20 @@ jobs:
       matrix:
         cluster: ${{ fromJson(github.event.inputs.clusters) }}
     steps:
-      - name: Create issue for ${{ matrix.cluster }}
+      - name: Create issue
+        env:
+          # Untrusted inputs — kept as shell variables, quoted everywhere used.
+          PARAM1: ${{ github.event.inputs.param1 }}
+          CLUSTER: ${{ matrix.cluster }}
+          MILESTONE_NUMBER: ${{ needs.create-milestone.outputs.milestone_number }}
         run: |
           # Create issue body
           # Use jq for robust raw JSON construction
           issue_body=$(
             jq -n \
-              --arg commit "${{ github.sha }}" \
-              --arg run_number "${{ github.run_number }}" \
-              --arg param1 "${{ github.event.inputs.param1 }}" \
+              --arg commit "$GITHUB_SHA" \
+              --arg run_number "$GITHUB_RUN_NUMBER" \
+              --arg param1 "$PARAM1" \
               '{
                 commit: $commit,
                 run_number: $run_number,
@@ -71,14 +78,14 @@ jobs:
               }'
           )
 
-          ISSUE=$(gh api repos/${{ github.repository }}/issues \
+          ISSUE=$(gh api "repos/${GH_REPO}/issues" \
             --method POST \
-            --raw-field title="${{ env.JOB_TITLE }} - run ${{ github.run_number }} [$(date +%F)]" \
+            --raw-field title="${JOB_TITLE} - run ${GITHUB_RUN_NUMBER} [$(date +%F)]" \
             --raw-field body="$issue_body" \
-            --field labels[]="${{ env.QUEUE_LABEL }}" \
-            --field labels[]="${{ matrix.cluster }}" \
-            --field milestone="${{ needs.create-milestone.outputs.milestone_number }}"
+            --field labels[]="$QUEUE_LABEL" \
+            --field labels[]="$CLUSTER" \
+            --field milestone="$MILESTONE_NUMBER"
           )
 
-          gh issue comment $(echo $ISSUE | jq -r '.number') --body "Triggered by [run ${{ github.run_number }}](${{ env.RUN_URL }})"
-          echo $ISSUE | jq -r '.html_url'
+          gh issue comment "$(echo "$ISSUE" | jq -r '.number')" --body "Triggered by [run ${GITHUB_RUN_NUMBER}](${RUN_URL})"
+          echo "$ISSUE" | jq -r '.html_url'
