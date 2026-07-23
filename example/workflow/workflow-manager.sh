@@ -57,6 +57,14 @@ if ! [[ "$run_number" =~ ^[0-9]+$ ]]; then
   exit 1
 fi
 
+# param1: free text. Nothing downstream currently treats it as a path or
+# a command, so no character-level restriction — just a sanity length cap.
+param1="$(jq -r '.param1' <<< "$payload")"
+if (( ${#param1} > 256 )); then
+  echo "ERROR: 'param1' exceeds 256 characters (${#param1})" >&2
+  return 1
+fi
+
 
 #--------------------------------------------
 # Code set up
