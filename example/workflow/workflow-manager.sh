@@ -51,7 +51,7 @@ if ! [[ "$commit_hash" =~ ^[0-9a-fA-F]{7,40}$ ]]; then
   exit 1
 fi
 
-run_number="$(q -r '.run_number' <<< "$payload")"
+run_number="$(jq -r '.run_number' <<< "$payload")"
 if ! [[ "$run_number" =~ ^[0-9]+$ ]]; then
   echo "ERROR: 'run_number' must be a positive integer, got: $run_number" >&2
   exit 1
