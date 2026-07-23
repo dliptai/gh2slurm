@@ -39,19 +39,28 @@ handle_error() {
 # Trap any subsequent errors in the script.
 trap handle_error ERR
 
-# Get the commit hash we want to work with from the issue body.
-commit_hash="$(echo "$ISSUE" | jq -r '.body' | jq -r '.commit')"
+
+#--------------------------------------------
+# Validate json paylod
+#--------------------------------------------
+payload=$(jq -r '.body' <<< "$ISSUE")
+
+commit_hash="$(jq -r '.commit' <<< "$payload")"
 if ! [[ "$commit_hash" =~ ^[0-9a-fA-F]{7,40}$ ]]; then
   echo "ERROR: 'commit' must be a 7-40 char hex git SHA, got: $commit_hash" >&2
   exit 1
 fi
 
-# Get the run number from the issue body.
-run_number="$(echo "$ISSUE" | jq -r '.body' | jq -r '.run_number')"
+run_number="$(q -r '.run_number' <<< "$payload")"
 if ! [[ "$run_number" =~ ^[0-9]+$ ]]; then
   echo "ERROR: 'run_number' must be a positive integer, got: $run_number" >&2
   exit 1
 fi
+
+
+#--------------------------------------------
+# Code set up
+#--------------------------------------------
 
 # Create a job run directory based off the unique run_number, and change into it.
 job_run_dir="run${run_number}"
@@ -76,6 +85,11 @@ fi
 
 tar xzf "$tmp_archive" --strip-components=3 "*/example/codebase"
 
+
+#--------------------------------------------
+# Job submissions
+#--------------------------------------------
+
 # Submit build job
 JOB1="$(sbatch --parsable --partition="$partition_compute" build.sh)"
 
@@ -89,7 +103,10 @@ JOB3="$(sbatch --parsable \
               --dependency="afterany:$JOB1:$JOB2" \
               publish.sh "$ISSUE")"
 
-# Publish the job IDs to the GitHub issue
+
+#--------------------------------------------
+# # Publish the job IDs to the GitHub issue
+#--------------------------------------------
 JOBSTR="$(cat <<EOF
 Workflow:
 \`\`\`
