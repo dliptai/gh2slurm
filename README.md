@@ -22,7 +22,7 @@ If you can submit Slurm jobs from the command line, you can use this.
 
 This is **not** a "run generic GitHub Actions on Slurm" system, such as [gha-slurm](https://github.com/ripley-cloud/gha-slurm) or [slurm-gha](https://github.com/WATonomous/slurm-gha). In those projects, you upload a full `.github/workflows/*.yml` and the Slurm cluster executes every step inside containers — the cluster becomes an Action runner.
 
-Here, the workflow already lives **on the cluster** as regular Slurm scripts. The GitHub issue is just a lightweight trigger with minimal input — typically a commit hash and a few parameters. The actual workflow (e.g. build → benchmark → publish) can be hidden away on the cluster; you never see the individual Slurm scripts from GitHub unless you want to.
+Here, the workflow already lives **on the cluster** as regular Slurm scripts. The GitHub issue is just a lightweight trigger with minimal input — typically a commit hash and a few parameters. The actual workflow (e.g. build → benchmark → results) can be hidden away on the cluster; you never see the individual Slurm scripts from GitHub unless you want to.
 
 ### Security note
 
@@ -164,19 +164,23 @@ The broker relies on:
 
 In our example, the workflow:
 - takes the issue as input
+- validates the JSON payload (commit hash format, run number is numeric, etc)
+- validates the downloaded tarball for path-traversal entries before extracting
 - creates a unique run directory
 - downloads the example code at a specific commit, as specified in the issue body (JSON payload)
 - and submits a chain of three dependent Slurm jobs:
 
 1. **`build.sh`** — compiles `src/helloworld.c` via Make
 2. **`benchmark.sh`** — runs the binary, times it, saves output to `timings.txt` (runs after build job succeeds)
-3. **`publish.sh`** — gathers job states via `sacct`, posts timing/results back to the issue, and either closes the issue or marks it `failed` (runs unconditionally after both previous jobs finish)
+3. **`results.sh`** — posts the timing results back to the issue as a comment (runs after benchmark succeeds)
+
+A fourth inline `report` job is then submitted via `--dependency=afterany` so it runs regardless of whether any of the three work jobs failed. It gathers parent job states via `sacct`, posts a summary comment, and either closes the issue or marks it `failed`. It's a reporting step layered on top of the workflow, not part of the workflow itself.
 
 Dependencies between jobs are specified using `sbatch --dependency` flags.
 
 ### 4. Supporting files
 
-- `install-gh-cli_linux_amd64` / `install-gh-token_linux_amd64` — installers for the `gh` and `gh-token` CLIs into `./bin`
+- `bin/install_github_cli_tools_linux_amd64` — combined installer for `gh` and `gh-token` CLIs (with `--gh-cli-only` and `--token-only` flags)
 - `bin/gh-token-bash` — pure-bash fallback that generates a GitHub App JWT using `openssl` and exchanges it for an installation token (no extra binary needed)
 
 ## Architecture
@@ -197,17 +201,25 @@ workflow-manager.sh — manager
      │  sets up run dir, downloads code,
      │  submits 3 dependent Slurm jobs:
      ▼
-  build.sh ──afterok──► benchmark.sh ──afterany──► publish.sh
-     │                      │                       │
-     ▼                      ▼                       ▼
-  [slurm job]           [slurm job]           posts timing to the issue,
-                                               closes or marks failed
+  build.sh ──afterok──► benchmark.sh ──afterok──► results.sh
+     │                      │                        │
+     ▼                      ▼                        ▼
+  [slurm job]           [slurm job]             [slurm job] — posts timing
+──────────────────────────────────────────────────────────────────────────
+                                 │
+                              afterany
+                                 │
+                                 ▼
+                        [reporting slurm job]
+   - gathers sacct states for all 3 parent jobs,
+   - posts summary,
+   - closes or marks failed
 ```
 
 Key points:
 
 - The **broker** (`gh2slurm`) is short-lived — it only claims an issue and submits the manager workflow, then exits. It doesn't do any actual work.
 - The broker **resubmits itself first** via `--dependency=afterok`, before it even looks for work — so the next poll is queued immediately, ensuring the queue keeps moving even if the manager or work jobs fail downstream.
-- The **manager** (`workflow-manager.sh`) runs in its own Slurm job and handles the run-directory setup, code download, and submission of the three work jobs (see Components above).
-- Only `publish.sh` talks back to GitHub — it comments timing on the issue and either closes it or adds a `failed` label.
-- If any work job fails, `publish.sh` still runs (because of `afterany`) and reports the failure instead of silently succeeding.
+- The **manager** (`workflow-manager.sh`) runs in its own Slurm job and handles payload validation, tarball extraction, run-directory setup, and submission of the three work jobs (see Components above).
+- `results.sh` is the last step of the workflow — it posts only the timing output.
+- `report` is a separate reporting job layered on top of the workflow. It runs unconditionally (`afterany`) so that failures of any workflow job are still reported to the issue.
