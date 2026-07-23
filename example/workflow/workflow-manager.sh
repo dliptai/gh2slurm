@@ -129,7 +129,7 @@ EOF
 #--------------------------------------------
 # Submit a final report on all jobs submitted
 #--------------------------------------------
-
+export ISSUE_NUMBER
 sbatch --dependency="afterany:$JOB1:$JOB2:$JOB3" \
       --export="${GH_EXPORT_LIST},ISSUE_NUMBER" \
       --partition="$partition_internet" \
