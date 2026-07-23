@@ -123,7 +123,7 @@ else
     "$WORKFLOW_SCRIPT" "$ISSUE" \
   )"
 
-  JOBSTR="\`workflow $JOBID SUBMITTED\`"
+  JOBSTR="Workflow $JOBID SUBMITTED"
   gh issue comment "$NUMBER" --body "$JOBSTR" > /dev/null
   echo "$JOBSTR"
 fi

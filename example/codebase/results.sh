@@ -25,5 +25,5 @@ EOF
 # Print to logfile
 echo "$BODY"
 
-# Publish and un-claim
+# Report and un-claim
 gh issue comment "$ISSUE_NUMBER" --body "$BODY"

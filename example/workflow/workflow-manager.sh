@@ -29,9 +29,9 @@ partition_compute="$SLURM_JOB_PARTITION"     # Replace with a partition that has
 partition_internet="$SLURM_JOB_PARTITION"    # Replace with a partition that has internet access
 
 handle_error() {
-  # Publish error message to GitHub issue and mark it as failed
+  # Report error to GitHub issue and mark it as failed
   echo "ERROR: script failed." >&2
-  gh issue comment "$ISSUE_NUMBER" --body "\`$SLURM_JOB_ID failed\`" >&2
+  gh issue comment "$ISSUE_NUMBER" --body "Workflow $SLURM_JOB_ID failed" >&2
   gh issue edit "$ISSUE_NUMBER" --remove-label "running" --add-label "failed" >&2
   exit 1
 }
@@ -115,7 +115,7 @@ JOB3="$(sbatch --parsable --partition="$partition_internet" \
 
 
 #--------------------------------------------
-# Publish the job IDs to the GitHub issue
+# Report the job IDs to the GitHub issue
 #--------------------------------------------
 gh issue comment "$ISSUE_NUMBER" --body "$(cat <<EOF
 Workflow:
@@ -127,18 +127,18 @@ EOF
 
 
 #--------------------------------------------
-# Submit a final job to publish completion results
+# Submit a final report on all jobs submitted
 #--------------------------------------------
 
 sbatch --dependency="afterany:$JOB1:$JOB2:$JOB3" \
       --export="${GH_EXPORT_LIST},ISSUE_NUMBER" \
       --partition="$partition_internet" \
-      --job-name=publish \
+      --job-name=Report \
       --ntasks=1 \
       --cpus-per-task=1 \
       --time=00:01:00 \
-      --output="publish-%j.out" \
-<<<'EOF'
+      --output="report-%j.out" \
+<< 'EOF' || gh issue comment "$ISSUE_NUMBER" --body "workflow "  # Post if this fails to submit
 #!/bin/bash
 set -euo pipefail
 
@@ -156,24 +156,26 @@ STATES="$(sacct -j "$PARENT_IDS" -X --format=JobName,JobID,State,ExitCode || ech
 # Check if any parent jobs not in "COMPLETED" state
 if sacct -j "$PARENT_IDS" -X --format=State --noheader --parsable2 | grep -qv '^COMPLETED$'; then
   STATE=FAILED
+  JOBSTR="Some jobs FAILED"
 else
   STATE=COMPLETED
+  JOBSTR="All jobs COMPLETED"
 fi
 
 # Construct the header
-BODY="$(cat << EOF
-\`$SLURM_JOB_NAME $SLURM_JOB_ID $STATE\`
+BODY="$(cat << BODY_EOF
+$JOBSTR
 
 \`\`\`
 $STATES
 \`\`\`
-EOF
+BODY_EOF
 )"
 
 # Print to logfile
 echo "$BODY"
 
-# Publish and un-claim
+# Report and un-claim
 gh issue comment "$ISSUE_NUMBER" --body "$BODY"
 gh issue edit "$ISSUE_NUMBER" --remove-label "running"
 
