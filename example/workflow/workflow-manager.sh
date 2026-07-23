@@ -99,27 +99,90 @@ tar xzf "$tmp_archive" --strip-components=3 "*/example/codebase"
 #--------------------------------------------
 
 # Submit build job
-JOB1="$(sbatch --parsable --partition="$partition_compute" build.sh)"
+JOB1="$(sbatch --parsable --partition="$partition_compute" \
+        build.sh)"
 
 # Submit a second job to run the benchmarks, which depends on the first job's success
-JOB2="$(sbatch --parsable --partition="$partition_compute" --dependency="afterok:$JOB1" benchmark.sh)"
+JOB2="$(sbatch --parsable --partition="$partition_compute" \
+        --dependency="afterok:$JOB1" \
+        benchmark.sh)"
 
 # Submit the final job, which runs regardless of success or failure
-JOB3="$(sbatch --parsable \
-              --export="${GH_EXPORT_LIST}" \
-              --partition="$partition_internet" \
-              --dependency="afterany:$JOB1:$JOB2" \
-              publish.sh "$ISSUE")"
+JOB3="$(sbatch --parsable --partition="$partition_internet" \
+        --dependency="afterok:$JOB2" \
+        --export="${GH_EXPORT_LIST}" \
+        results.sh "$ISSUE_NUMBER")"
 
 
 #--------------------------------------------
-# # Publish the job IDs to the GitHub issue
+# Publish the job IDs to the GitHub issue
 #--------------------------------------------
-JOBSTR="$(cat <<EOF
+gh issue comment "$ISSUE_NUMBER" --body "$(cat <<EOF
 Workflow:
 \`\`\`
 $(sacct -j "$JOB1,$JOB2,$JOB3" -X --format=JobName,JobID)
 \`\`\`
 EOF
 )"
-gh issue comment "$ISSUE_NUMBER" --body "$JOBSTR"
+
+
+#--------------------------------------------
+# Submit a final job to publish completion results
+#--------------------------------------------
+
+sbatch --dependency="afterany:$JOB1:$JOB2:$JOB3" \
+      --export="${GH_EXPORT_LIST},ISSUE_NUMBER" \
+      --partition="$partition_internet" \
+      --job-name=publish \
+      --ntasks=1 \
+      --cpus-per-task=1 \
+      --time=00:01:00 \
+      --output="publish-%j.out" \
+<<<'EOF'
+#!/bin/bash
+set -euo pipefail
+
+gh_setup
+
+# Get parent jobs. Remove the prefix 'afterany:' or 'afterok:'
+RAW_IDS="${SLURM_JOB_DEPENDENCY#*:}"
+
+# Replace colons with commas so sacct can read them all at once
+PARENT_IDS="${RAW_IDS//:/,}"
+
+# Query the state of parent jobs
+STATES="$(sacct -j "$PARENT_IDS" -X --format=JobName,JobID,State,ExitCode || echo '[no parent jobs found]')"
+
+# Check if any parent jobs not in "COMPLETED" state
+if sacct -j "$PARENT_IDS" -X --format=State --noheader --parsable2 | grep -qv '^COMPLETED$'; then
+  STATE=FAILED
+else
+  STATE=COMPLETED
+fi
+
+# Construct the header
+BODY="$(cat << EOF
+\`$SLURM_JOB_NAME $SLURM_JOB_ID $STATE\`
+
+\`\`\`
+$STATES
+\`\`\`
+EOF
+)"
+
+# Print to logfile
+echo "$BODY"
+
+# Publish and un-claim
+gh issue comment "$ISSUE_NUMBER" --body "$BODY"
+gh issue edit "$ISSUE_NUMBER" --remove-label "running"
+
+# Close or mark as failed
+if [[ "$STATE" == "FAILED" ]]; then
+  gh issue edit "$ISSUE_NUMBER" --add-label "failed"
+  exit 1
+else
+  gh issue close "$ISSUE_NUMBER" 2>&1 | sed 's/✓ //g'
+fi
+
+EOF
