@@ -118,7 +118,6 @@ JOB3="$(sbatch --parsable --partition="$partition_internet" \
 # Report the job IDs to the GitHub issue
 #--------------------------------------------
 gh issue comment "$ISSUE_NUMBER" --body "$(cat <<EOF
-Workflow:
 \`\`\`
 $(sacct -j "$JOB1,$JOB2,$JOB3" -X --format=JobName,JobID)
 \`\`\`
@@ -133,12 +132,12 @@ export ISSUE_NUMBER
 sbatch --dependency="afterany:$JOB1:$JOB2:$JOB3" \
       --export="${GH_EXPORT_LIST},ISSUE_NUMBER" \
       --partition="$partition_internet" \
-      --job-name=Report \
+      --job-name=report \
       --ntasks=1 \
       --cpus-per-task=1 \
       --time=00:01:00 \
       --output="report-%j.out" \
-<< 'EOF' || gh issue comment "$ISSUE_NUMBER" --body "workflow "  # Post if this fails to submit
+<< 'EOF' || gh issue comment "$ISSUE_NUMBER" --body "ERROR submitting workflow reporting job"  # Post if this fails to submit
 #!/bin/bash
 set -euo pipefail
 

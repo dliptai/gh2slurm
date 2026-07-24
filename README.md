@@ -93,6 +93,7 @@ Edit `gh2slurm` and set:
 | `RESUBMIT_FREQ` | How often to run the broker, e.g. `1week`, `1minute`; used directly by `sbatch --begin` to delay the start of the next poll job. Keep this reasonably conservative: GitHub App installation tokens are rate-limited (~5000 requests/hour), so a very tight interval across many queue repos or clusters can burn through that budget. |
 | `CLUSTER_LABEL`     | Label on issues this broker should claim (e.g. `ozstar`) |
 | `QUEUE_LABEL`       | Label that identifies queue items (default: `job-queue`) |
+| `ISSUE_AUTHOR`      | Filter for issues written by this author |
 | `GH_APP_ID`         | App ID from step 1 |
 | `GH_APP_INSTALL_ID` | Installation ID from step 2 |
 | `GH_APP_KEY`        | Path to the private key `.pem` file |
@@ -137,7 +138,7 @@ In the code repo, a workflow — often on a `schedule` cron trigger — creates 
 ```json
 {
   "commit": "a1b2c3d",
-  "run_number": 42,
+  "run_number": "42",
   "param1": "value"
 }
 ```
@@ -219,7 +220,7 @@ workflow-manager.sh — manager
 Key points:
 
 - The **broker** (`gh2slurm`) is short-lived — it only claims an issue and submits the manager workflow, then exits. It doesn't do any actual work.
-- The broker **resubmits itself first** via `--dependency=afterok`, before it even looks for work — so the next poll is queued immediately, ensuring the queue keeps moving even if the manager or work jobs fail downstream.
+- The broker **resubmits itself first** via `--dependency=afterok`, before it even looks for work — so the next poll is queued immediately, ensuring the queue keeps moving even if the manager or work jobs fail downstream. However, any failure in `gh_setup` will kill the chain.
 - The **manager** (`workflow-manager.sh`) runs in its own Slurm job and handles payload validation, tarball extraction, run-directory setup, and submission of the three work jobs (see Components above).
 - `results.sh` is the last step of the workflow — it posts only the timing output.
 - `report` is a separate reporting job layered on top of the workflow. It runs unconditionally (`afterany`) so that failures of any workflow job are still reported to the issue.
